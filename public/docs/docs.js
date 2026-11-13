@@ -1,6 +1,7 @@
 // GEO Observability docs — navigation, theme, search, copy buttons, table of contents, entrance.
 (function () {
   'use strict';
+  var BASE = typeof window.__GEO_BASE__ === 'string' ? window.__GEO_BASE__ : ''; // set by the Worker under a base path
 
   var root = document.documentElement;
   var body = document.body;
@@ -119,7 +120,7 @@
   function loadIndex() {
     if (index) return Promise.resolve(index);
     if (!loading) {
-      loading = fetch('/docs/search.json')
+      loading = fetch(BASE + '/docs/search.json')
         .then(function (r) { return r.json(); })
         .then(function (data) { index = data; return data; })
         .catch(function () { loading = null; return []; });
@@ -168,7 +169,7 @@
       list.innerHTML = '<li class="r-empty">No pages match. Try a shorter word.</li>';
     } else {
       list.innerHTML = results.map(function (p, i) {
-        return '<li role="option" id="sr-' + i + '" aria-selected="false"><a href="' + escapeHtml(p.url) + '">' +
+        return '<li role="option" id="sr-' + i + '" aria-selected="false"><a href="' + escapeHtml(BASE + p.url) + '">' +
           '<span class="r-section">' + escapeHtml(p.section) + '</span>' +
           '<span class="r-title">' + highlight(p.title, terms) + '</span>' +
           '<span class="r-excerpt">' + highlight(p.excerpt, terms) + '</span></a></li>';

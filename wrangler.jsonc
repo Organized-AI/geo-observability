@@ -6,12 +6,20 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
 
-  // Portal, marketing page and docs are static assets; /api, /mcp, /ingest, /share, /auth and /webhooks hit the Worker first.
+  // Public address: app.organizedai.vip/geo-observability. These routes sit in front of the organizedai-vanity-router
+  // (a route beats a Custom Domain or a wider route on the same host), so the router's other apps are untouched.
+  "routes": [
+    { "pattern": "app.organizedai.vip/geo-observability", "zone_name": "organizedai.vip" },
+    { "pattern": "app.organizedai.vip/geo-observability/*", "zone_name": "organizedai.vip" }
+  ],
+
+  // Portal, marketing page and docs are static assets. Every request reaches the Worker first so it can serve them
+  // under the base path (src/lib/basepath.ts); /api, /mcp, /ingest, /share, /auth and /webhooks are Worker routes.
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/mcp", "/mcp/*", "/ingest/*", "/share/*", "/auth/*", "/webhooks/*", "/healthz"]
+    "run_worker_first": true
   },
 
   "observability": { "enabled": true, "head_sampling_rate": 1 },
@@ -19,6 +27,8 @@
   "vars": {
     "ENVIRONMENT": "production",
     "APP_NAME": "GEO Observability",
+    // Public address. Its path is the base path; workers.dev page loads redirect here. "" turns both off.
+    "APP_URL": "https://app.organizedai.vip/geo-observability",
     "AI_GATEWAY_ID": "geo-observability",
     "DEMO_MODE": "true",
     "DEMO_TENANT_SLUG": "demo",

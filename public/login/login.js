@@ -1,4 +1,5 @@
 // Email sign-in: ask for a single-use link. The answer is the same whether or not the email has an account.
+const BASE = typeof window.__GEO_BASE__ === "string" ? window.__GEO_BASE__ : ""; // set by the Worker under a base path
 const $ = (id) => document.getElementById(id);
 const note = $("note");
 const form = $("form");
@@ -21,7 +22,7 @@ form.addEventListener("submit", async (ev) => {
   submit.disabled = true;
   submit.textContent = "Sending…";
   try {
-    const res = await fetch("/auth/login", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ email: email.value.trim() }), credentials: "same-origin" });
+    const res = await fetch(`${BASE}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ email: email.value.trim() }), credentials: "same-origin" });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || `Request failed (${res.status})`);
     say(data.message || "Check your email for a sign-in link.", "info");

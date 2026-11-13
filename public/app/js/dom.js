@@ -3,6 +3,16 @@ import { drawerIn, drawerOut } from "./anim.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+/** Path the app is served under ("" at the root, "/geo-observability" on app.organizedai.vip). Set by the Worker. */
+export const BASE = typeof window !== "undefined" && typeof window.__GEO_BASE__ === "string" ? window.__GEO_BASE__ : "";
+
+/** Prefixes a root-relative URL with BASE, once. */
+export function withBase(v) {
+  if (!BASE || typeof v !== "string" || !v.startsWith("/") || v.startsWith("//")) return v;
+  if (v === BASE || v.startsWith(`${BASE}/`) || v.startsWith(`${BASE}?`) || v.startsWith(`${BASE}#`)) return v;
+  return BASE + v;
+}
+
 function apply(el, attrs) {
   if (!attrs) return;
   for (const [k, v] of Object.entries(attrs)) {
@@ -12,6 +22,7 @@ function apply(el, attrs) {
     else if (k === "dataset") Object.assign(el.dataset, v);
     else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
     else if (k === "value" || k === "checked" || k === "selected" || k === "indeterminate") el[k] = v;
+    else if (k === "href" || k === "src" || k === "action") el.setAttribute(k, withBase(String(v)));
     else el.setAttribute(k, v === true ? "" : String(v));
   }
 }

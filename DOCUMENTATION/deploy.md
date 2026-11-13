@@ -45,6 +45,23 @@ npm run seed:demo                # optional: read-only demo workspace at /app/ w
 
 Set `DEMO_MODE` to `"false"` in wrangler.jsonc once real clients are on it.
 
+## 3b. Public address (app.organizedai.vip/geo-observability)
+
+`wrangler.jsonc` sets `APP_URL` to `https://app.organizedai.vip/geo-observability` and adds two routes on the
+`organizedai.vip` zone (`app.organizedai.vip/geo-observability` and `.../geo-observability/*`). `wrangler deploy`
+creates them. `app.organizedai.vip` already has a proxied DNS record (the organizedai-vanity-router serves the rest of
+that host), so no DNS change is needed; a route beats the router on these two paths only.
+
+What the base path changes, all in `src/lib/basepath.ts`: the path is stripped before routing, HTML links get the
+prefix, redirects get the prefix, and the session cookie becomes `__Secure-geo_session` with `Path=/geo-observability`
+(people signed in on workers.dev sign in once more). On workers.dev, page loads redirect to the public address while
+`/api`, `/ingest`, `/mcp`, `/tap.js`, `/healthz` and `/webhooks/stripe` keep answering, so installed snippets and the
+existing Stripe webhook endpoint still work. Moving the Stripe webhook to
+`https://app.organizedai.vip/geo-observability/webhooks/stripe` is optional; if you do, keep the same signing secret or
+update `STRIPE_WEBHOOK_SECRET`.
+
+To go back to workers.dev only: set `"APP_URL": ""`, remove `routes`, deploy.
+
 ## 4. Sign-in
 
 Clients sign up at `/signup/` and sign in with emailed links at `/login/`; sessions are an HttpOnly cookie. Set up sending once: [sign-in-email.md](sign-in-email.md). Agency staff named in `AGENCY_EMAILS` can sign in by link too.

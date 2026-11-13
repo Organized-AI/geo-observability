@@ -1,5 +1,6 @@
 // Self-serve signup: create the workspace, then hand off to Stripe Checkout to save a card.
 const $ = (id) => document.getElementById(id);
+const BASE = typeof window.__GEO_BASE__ === "string" ? window.__GEO_BASE__ : ""; // set by the Worker under a base path
 const note = $("note");
 const form = $("form");
 const submit = $("submit");
@@ -11,7 +12,7 @@ function say(text, tone = "info") {
 }
 
 async function call(method, body) {
-  const res = await fetch("/api/signup", {
+  const res = await fetch(`${BASE}/api/signup`, {
     method,
     headers: { Accept: "application/json", ...(body ? { "Content-Type": "application/json" } : {}) },
     body: body ? JSON.stringify(body) : undefined,
@@ -48,7 +49,7 @@ async function init() {
       for (const w of list) {
         const li = document.createElement("li");
         const a = document.createElement("a");
-        a.href = "/app/";
+        a.href = `${BASE}/app/`;
         a.addEventListener("click", () => { try { localStorage.setItem("geo-tenant", w.slug); } catch { /* storage off */ } });
         a.append(Object.assign(document.createElement("span"), { textContent: w.name }), Object.assign(document.createElement("span"), { textContent: "Open →" }));
         li.append(a);

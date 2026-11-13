@@ -8,9 +8,10 @@
  *     "metered": { "answers_run": { "event_name": "geo_answers_run", "price": "price_…" }, … },
  *     "portal_config": "bpc_…", "trial_days": 0 }
  * STRIPE_AUTOMATIC_TAX     "true" turns on Stripe Tax in Checkout. Off by default: the owner decides.
- * APP_URL                  optional public origin for Checkout return links; defaults to the request's origin.
+ * APP_URL                  public address for Checkout returns and sign-in links (may carry a base path); defaults to the request.
  */
 import type { Env } from "../env";
+import { publicUrl, requestBase } from "../lib/basepath";
 import { HttpError } from "../lib/util";
 
 export interface MeteredPrice {
@@ -100,8 +101,9 @@ export function graceDays(env: Env): number {
   return Number.isFinite(n) && n >= 0 ? Math.min(n, 60) : 7;
 }
 
+/** Public address for links the Worker writes: APP_URL (may include a base path) or the request's origin + base. */
 export function appOrigin(env: Env, req: Request): string {
-  const fromEnv = (env.APP_URL ?? "").trim().replace(/\/+$/, "");
-  if (/^https?:\/\/[^/]+$/.test(fromEnv)) return fromEnv;
-  return new URL(req.url).origin;
+  const pub = publicUrl(env);
+  if (pub) return `${pub.origin}${pub.base}`;
+  return `${new URL(req.url).origin}${requestBase(req)}`;
 }

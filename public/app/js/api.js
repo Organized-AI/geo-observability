@@ -1,5 +1,5 @@
 // One fetch path for the whole portal: tenant header, JSON handling and readable errors.
-import { toast, store } from "./dom.js";
+import { toast, store, withBase } from "./dom.js";
 
 export const session = { tenant: store.get("geo-tenant") || null };
 
@@ -26,7 +26,7 @@ export function onAuthError(fn) { listeners.add(fn); }
 
 export async function api(path, opts = {}) {
   const { method = "GET", body, query, headers = {}, tenant = true, quiet = false } = opts;
-  let url = path.startsWith("/") ? path : `/api/${path}`;
+  let url = withBase(path.startsWith("/") ? path : `/api/${path}`);
   const qs = query instanceof URLSearchParams ? query : new URLSearchParams(query || {});
   for (const [k, v] of [...qs]) if (v === "" || v == null) qs.delete(k);
   const q = qs.toString();

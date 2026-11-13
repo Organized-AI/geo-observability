@@ -14,6 +14,7 @@ import { billingBanner, billingLocks, billingStatus } from "../billing/hooks";
 import { assertSameOrigin, rateLimit } from "../lib/session";
 import { emailFailureReason, mailerKind, parseFrom, sendMail } from "../lib/mailer";
 import { STARTER_MODEL_LIMIT } from "./billing";
+import { appOrigin } from "../billing/config";
 import { TenantDB, type BrandRow, type ProjectRow, type PromptRow } from "../lib/db";
 
 export type AppEnv = { Bindings: Env; Variables: { session: Session } };
@@ -970,7 +971,7 @@ api.post("/projects/:pid/views/:id/share", async (c) => {
   await s.tdb.run("INSERT INTO share_links (id, tenant_id, view_id, expires_at) VALUES (?2, ?1, ?3, ?4)", shareId, c.req.param("id"), expires.toISOString());
   const token = await signShare(c.env.SHARE_LINK_SECRET, shareId, expires);
   await audit(s, "share.create", { view: c.req.param("id"), expires: expires.toISOString() });
-  return c.json({ url: `${new URL(c.req.url).origin}/app/#/shared/${token}`, expires_at: expires.toISOString() });
+  return c.json({ url: `${appOrigin(c.env, c.req.raw)}/app/#/shared/${token}`, expires_at: expires.toISOString() });
 });
 
 // ------------------------------------------------------------------ exports
@@ -1011,7 +1012,7 @@ api.get("/projects/:pid/export/metrics.csv", async (c) => {
 api.get("/projects/:pid/tracking", async (c) => {
   const s = c.get("session");
   const p = await s.tdb.project(c.req.param("pid"));
-  const origin = new URL(c.req.url).origin;
+  const origin = appOrigin(c.env, c.req.raw);
   return c.json({
     ingest_endpoint: `${origin}/ingest`,
     tap_snippet: `<script async src="${origin}/tap.js" data-project="${p.id}" data-key="YOUR_INGEST_KEY"></script>`,

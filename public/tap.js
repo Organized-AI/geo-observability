@@ -14,7 +14,7 @@
     if (!fromAi) return;
     var key2 = "geo_tap_" + location.pathname;
     try { if (sessionStorage.getItem(key2)) return; sessionStorage.setItem(key2, "1"); } catch (e) {}
-    var endpoint = new URL("/ingest/hit", s.src).toString();
+    var endpoint = new URL("ingest/hit", s.src).toString(); // next to tap.js, so it works under a base path
     var body = JSON.stringify({ k: key, p: project, url: location.origin + location.pathname, ref: host ? "https://" + host + "/" : "", utm: utm });
     if (navigator.sendBeacon) navigator.sendBeacon(endpoint, body);
     else fetch(endpoint, { method: "POST", body: body, keepalive: true, mode: "no-cors" });

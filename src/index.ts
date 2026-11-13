@@ -11,6 +11,7 @@ import { aggregateUsage } from "./billing/hooks";
 import { stripeProvider } from "./billing/stripe";
 import { billingApi, signupApi, stripeWebhook } from "./routes/billing";
 import { authApp } from "./routes/auth";
+import { serveWithBase } from "./lib/basepath";
 
 export { RunPromptWorkflow, InsightsWorkflow } from "./workflows/run-prompt";
 export { RunProgress } from "./durable/progress";
@@ -85,7 +86,9 @@ app.post("/ingest/conversion", async (c) => {
 app.all("/api/*", (c) => c.json({ error: "not_found", message: "No such endpoint" }, 404));
 
 export default {
-  fetch: app.fetch,
+  fetch(req: Request, env: Env, ctx: ExecutionContext) {
+    return serveWithBase(req, env, (r) => app.fetch(r, env, ctx), (r) => env.ASSETS.fetch(r));
+  },
 
   async queue(batch: MessageBatch<RunJob>, env: Env) {
     await consumeRuns(batch, env);

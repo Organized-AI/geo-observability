@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0
+- Served at https://app.organizedai.vip/geo-observability through two Workers routes on this Worker (they take precedence over the organizedai-vanity-router on that host, which is left untouched).
+- `APP_URL` may carry a base path. Under it the Worker strips the path, rewrites root-relative links in HTML, prefixes its redirects and scopes the session cookie to the path (`__Secure-geo_session`, so other apps on the host never see it). Sign-in links, Stripe returns, share links and tracking snippets use the public address.
+- Page loads on the workers.dev address redirect to APP_URL; the API, ingest, MCP, tap.js and the Stripe webhook keep answering there. `APP_URL=""` turns the base path and the redirect off.
+
 ## 1.2.4
 - Email Service gets the sender as a plain address string, as in Cloudflare's example; a malformed EMAIL_FROM is caught before sending and the error names what is set.
 

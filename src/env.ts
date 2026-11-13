@@ -29,7 +29,7 @@ export interface Env {
   BILLING_GRACE_DAYS?: string;
   STRIPE_AUTOMATIC_TAX?: string; // "true" turns on Stripe Tax in Checkout; off by default
   STRIPE_LIVE_MODE?: string; // must be "true" before a live key is accepted
-  APP_URL?: string; // public origin for Stripe return links and sign-in emails; defaults to the request origin
+  APP_URL?: string; // public address (origin + optional base path) for links, Stripe returns and sign-in emails
   EMAIL_FROM?: string; // sender address on a domain onboarded to Cloudflare Email Service (or verified at Resend)
   EMAIL_FROM_NAME?: string;
   EMAIL_MODE?: string; // "resend" to skip the Cloudflare binding; "outbox" (development only) writes to D1 instead of sending

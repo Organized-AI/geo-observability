@@ -1,5 +1,5 @@
 // Portal shell: session boot, navigation, project/tenant switchers, global filters and hash routing.
-import { h, clear, icon, store, toast, errorBox, csv, closeDrawer, segmented } from "./js/dom.js";
+import { h, clear, icon, store, toast, errorBox, csv, closeDrawer, segmented, withBase } from "./js/dom.js";
 import { api, session, setTenant, filterQuery, onAuthError, openBilling } from "./js/api.js";
 import { viewIn } from "./js/anim.js";
 import overview, { renderShared } from "./js/views/overview.js";
@@ -97,9 +97,9 @@ async function boot(force) {
 }
 
 async function signOut() {
-  try { await fetch("/auth/logout", { method: "POST", headers: { Accept: "application/json" }, credentials: "same-origin" }); } catch { /* offline: cookie stays until it expires */ }
+  try { await fetch(withBase("/auth/logout"), { method: "POST", headers: { Accept: "application/json" }, credentials: "same-origin" }); } catch { /* offline: cookie stays until it expires */ }
   setTenant(null);
-  location.assign("/");
+  location.assign(withBase("/"));
 }
 
 function showSignedOut() {
