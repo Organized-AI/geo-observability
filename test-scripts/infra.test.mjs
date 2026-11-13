@@ -66,6 +66,9 @@ function fakeCloudflare(state) {
 test("plan finds what is missing and apply creates it and records new ids", async () => {
   const envs = await loadAll();
   const staging = envs.staging;
+  // as before infra:apply has run: placeholder ids in wrangler.jsonc
+  staging.d1[0].id = "REPLACE_WITH_STAGING_D1_ID";
+  staging.kv[0].id = "REPLACE_WITH_STAGING_KV_ID";
   const { call, calls } = fakeCloudflare({ worker: false, secrets: [], d1: [], kv: [], r2: [], queues: ["geo-observability-runs-staging"], gateways: [] });
   const items = await plan(staging, call);
   const missing = items.filter((i) => i.status === "missing").map((i) => `${i.kind}:${i.name}`);
