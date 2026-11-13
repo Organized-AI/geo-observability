@@ -292,7 +292,9 @@ describe("usage metering", () => {
   it("sends Stripe meter events with the identifier and treats a repeat as already pushed", async () => {
     const requests: { url: string; body: string; headers: Record<string, string> }[] = [];
     let mode: "ok" | "dup" | "limit" = "ok";
-    const fakeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    // Like Workers' fetch, refuse to run with a foreign `this` ("Illegal invocation").
+    const fakeFetch = async function (this: unknown, input: RequestInfo | URL, init?: RequestInit) {
+      if (this !== undefined && this !== globalThis) throw new TypeError("Illegal invocation");
       requests.push({ url: String(input), body: String(init?.body ?? ""), headers: init?.headers as Record<string, string> });
       if (mode === "dup") return new Response(JSON.stringify({ error: { message: "An event already exists with identifier x." } }), { status: 400 });
       if (mode === "limit") return new Response(JSON.stringify({ error: { message: "Too many requests" } }), { status: 429 });

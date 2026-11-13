@@ -48,7 +48,7 @@ export class Stripe {
   private readonly key: string;
   constructor(
     key: string,
-    private readonly fetcher: Fetcher = fetch,
+    private readonly fetcher: Fetcher = (input, init) => fetch(input, init),
     private readonly base = "https://api.stripe.com",
   ) {
     this.key = cleanKey(key);
@@ -65,7 +65,9 @@ export class Stripe {
     if (idempotencyKey) headers["idempotency-key"] = idempotencyKey;
     let res: Response;
     try {
-      res = await this.fetcher(url, { method, headers, body: method === "POST" ? body : undefined });
+      // Call the fetcher as a plain function: on Workers, fetch called as a method of another object throws "Illegal invocation".
+      const send = this.fetcher;
+      res = await send(url, { method, headers, body: method === "POST" ? body : undefined });
     } catch (e) {
       throw new StripeError(0, "network", `Couldn't reach Stripe: ${String((e as Error)?.message ?? e)}`);
     }
