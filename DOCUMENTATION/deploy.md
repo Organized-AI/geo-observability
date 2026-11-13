@@ -51,6 +51,8 @@ Zero Trust → Access → Applications → self-hosted, domain = the Worker's ho
 
 ## 5. GitOps
 
+First enable the workflows (they are parked in `CONFIG/github-workflows/`): `git mv CONFIG/github-workflows .github/workflows`, commit and push.
+
 Push to `main` → CI gate → deploy workflow ships **staging**. Publish a GitHub release → ships **production** (add required reviewers on the `production` environment). Repo secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`; optional repo variable `APP_URL_STAGING` for the smoke test. The deploy job skips cleanly until those secrets exist.
 
 ## 6. Client edge tap (per client zone)
