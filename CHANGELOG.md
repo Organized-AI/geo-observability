@@ -8,9 +8,14 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - GitOps like Organized-AI/podcast-agent: a PR Gate on every pull request, security scans, staging deployed from `main`, production deployed from a `vX.Y.Z` tag with a GitHub Release from this file, and a rollback workflow (DOCUMENTATION/gitops.md). The workflows are parked in `CONFIG/github-workflows/` until they are moved into `.github/workflows/`.
 - Infrastructure as code: `infra/environments.json` plus `wrangler.jsonc` declare every resource per environment; `npm run infra:plan|infra:apply -- --env <env>` lists or creates what is missing (D1, KV, R2, queues and dead-letter queues, AI Gateway) and checks which Worker secrets are set (names only). `npm run infra:check` runs offline in CI: staging mirrors production's bindings and vars and shares none of its resources.
 - One version everywhere: `npm run version:check` (package.json, package-lock.json, CHANGELOG), `npm run release:prepare`. Deploys stamp the Worker version with the release tag and set `APP_VERSION` and `GIT_COMMIT`; `/healthz` reports them and the deploy script checks it after every deploy.
+- How it works in 3D at `/how-it-works/`: the system as an interactive three.js map (orbit, flow, explode, top view, a guided loop and a breakdown of each of the ten parts), linked from the landing page footer. three.js r128 is vendored in `public/vendor/`.
 - `CONFIG/github/setup.sh`: creates the `staging` and `production` environments and the `main` and `v*` tag rulesets with `gh`.
 
+### Changed
+- The README is product-level: diagrams (Mermaid) and an animated preview of the 3D map instead of ids, prices and secret lists.
+
 ### Fixed
+- `npm run dev:offline` works again without a Cloudflare login: the email binding runs locally instead of remotely.
 - Staging inherited production's routes, so a staging deploy would have taken `app.organizedai.vip/geo-observability` from production. Staging now has no routes, an empty `APP_URL` and its own dead-letter queue.
 
 ## [1.3.1] - 2026-11-13

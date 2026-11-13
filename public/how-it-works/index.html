@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GEO Observability in 3D</title>
+<meta name="description" content="GEO Observability drawn as a 3D map: ten parts, one loop. Click any part to see what it is, why it is there, and how to try it.">
+<script>
+/* ?theme=light|dark overrides the system theme; ?embed=1 drops the title block and reports the page height to the parent. */
+(function(){try{var q=new URLSearchParams(location.search),t=q.get('theme'),d=document.documentElement;
+if(t==='light'||t==='dark')d.setAttribute('data-theme',t);else{var s=localStorage.getItem('oa-theme');if(s==='light'||s==='dark')d.setAttribute('data-theme',s);}
+if(q.get('embed')==='1')d.classList.add('embed');}catch(e){}})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+:root{--bg:#0e1014;--panel:#15181e;--line:#272c36;--ink:#edeef0;--mute:#8f949e;--accent:#c6f062;--hl:#c6f062;--brand:#c6f062;--on-brand:#1b2306;--chip:#1b1f27;--pulse:#8f9cff;--bad:#ff8670;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:dark}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#f6f5f1;--panel:#ffffff;--line:#e2e0d8;--ink:#14161b;--mute:#626671;--accent:#3a49d6;--hl:#3a49d6;--brand:#c6f062;--on-brand:#1b2306;--chip:#f0efe9;--pulse:#0d968a;--bad:#b4381f;color-scheme:light}}
+:root[data-theme="light"]{--bg:#f6f5f1;--panel:#ffffff;--line:#e2e0d8;--ink:#14161b;--mute:#626671;--accent:#3a49d6;--hl:#3a49d6;--brand:#c6f062;--on-brand:#1b2306;--chip:#f0efe9;--pulse:#0d968a;--bad:#b4381f;color-scheme:light}
+:root[data-theme="dark"]{--bg:#0e1014;--panel:#15181e;--line:#272c36;--ink:#edeef0;--mute:#8f949e;--accent:#c6f062;--hl:#c6f062;--brand:#c6f062;--on-brand:#1b2306;--chip:#1b1f27;--pulse:#8f9cff;--bad:#ff8670;color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);overflow-x:hidden}
+html.embed,html.embed body{background:transparent;overflow:hidden}
+button{font:inherit;color:inherit}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{display:flex;flex-direction:column;gap:12px;max-width:1440px;margin:0 auto;padding:20px 20px 28px}
+html.embed .app{max-width:none;padding:3px 3px 6px}
+html.embed .d3-title{display:none}
+.d3-head{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end;justify-content:space-between;flex-shrink:0}
+.kick{display:block;font:500 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.kick a{color:inherit;text-decoration:none}
+.kick a:hover{text-decoration:underline}
+.d3-head h1{margin:4px 0 0;font:600 22px/1.15 var(--mono);color:var(--ink)}
+.d3-head p{margin:5px 0 0;color:var(--mute);font-size:13.5px;max-width:66ch}
+.d3-bar{display:flex;gap:6px;flex-wrap:wrap}
+.d3-bar button{background:var(--chip);border:1px solid var(--line);color:var(--ink);padding:6px 11px;border-radius:999px;cursor:pointer;font:500 12.5px var(--mono);min-height:34px}
+.d3-bar button:hover{border-color:color-mix(in srgb,var(--accent) 60%,var(--line))}
+.d3-bar button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.d3-bar button[data-a="tour"]{background:var(--brand);color:var(--on-brand);border-color:var(--brand);font-weight:600}
+.d3-bar button[data-a="tour"][aria-pressed="true"]{background:var(--chip);color:var(--accent);border-color:var(--accent)}
+.d3-bar button:disabled{opacity:.45;cursor:not-allowed}
+.d3-frame{position:relative;height:min(74vh,780px);min-height:480px}
+html.embed .d3-frame{height:600px;min-height:0}
+.d3-stage{position:absolute;inset:0;border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden;touch-action:none;cursor:grab;overscroll-behavior:contain}
+.d3-stage:active{cursor:grabbing}
+.d3-stage canvas{display:block;width:100%;height:100%;outline:none}
+.d3-labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.d3-lbl{position:absolute;left:0;top:0;font:500 12px var(--mono);color:var(--mute);white-space:nowrap;transform:translate(-50%,-50%);transition:color .25s,opacity .25s;background:none;border:0;padding:2px 4px;margin:0;line-height:1.2}
+.d3-lbl.start{transform:translate(0,-50%)}
+.d3-lbl.end{transform:translate(-100%,-50%)}
+.d3-lbl.rot{transform:translate(-50%,-50%) rotate(-90deg)}
+button.d3-lbl{pointer-events:auto;cursor:pointer;border-radius:4px}
+button.d3-lbl:hover{color:var(--ink)}
+.d3-lbl.on{color:var(--ink)}
+.d3-lbl.off{opacity:.35}
+.d3-lbl.sel{color:var(--accent)}
+.d3-lbl.grp{font:500 10px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--mute);opacity:.85}
+.d3-lbl.elbl{font:500 10px var(--mono);color:var(--accent);background:color-mix(in srgb,var(--panel) 82%,transparent);border-radius:4px;opacity:0;transition:opacity .25s}
+.d3-lbl.elbl.show{opacity:1}
+.d3-lbl.hid{opacity:0!important}
+.d3-fallback{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;font:13px/1.6 var(--mono);color:var(--mute)}
+.d3-hud{position:absolute;z-index:3}
+.d3-tip{top:12px;left:14px;margin:0;font:11.5px/1.5 var(--mono);color:var(--mute);pointer-events:none;max-width:min(46%,520px)}
+.d3-nav{left:12px;right:12px;bottom:12px;display:flex;gap:8px;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:thin}
+.d3-pick,.d3-tab{background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:10px;color:var(--ink)}
+.d3-tab{appearance:none;flex:0 0 auto;min-width:142px;text-align:left;padding:8px 10px;cursor:pointer;font:inherit;transition:border-color .18s,transform .18s}
+.d3-tab:hover{transform:translateY(-2px);border-color:var(--accent)}
+.d3-tab[aria-selected="true"]{border-color:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent)}
+.d3-tab .ti{font:500 9.5px var(--mono);letter-spacing:.1em;color:var(--mute)}
+.d3-tab .tn{font:600 13px var(--mono);margin-top:3px;white-space:nowrap}
+.d3-tab .tr{font:11px var(--mono);color:var(--accent);margin-top:3px;white-space:nowrap}
+.d3-pick{top:12px;right:12px;display:flex;align-items:center;gap:12px;padding:8px 8px 8px 12px;border-color:color-mix(in srgb,var(--accent) 45%,var(--line));max-width:min(470px,52%)}
+.d3-pick .pn{font:700 24px/1 var(--mono);color:color-mix(in srgb,var(--ink) 26%,transparent)}
+.d3-pick .pt{min-width:0;flex:1 1 auto}
+.d3-pick .pt b{display:block;font:600 14px/1.25 var(--mono);color:var(--accent)}
+.d3-pick .pt span{display:block;font:12.5px/1.35 var(--sans);color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.d3-go{display:inline-flex;align-items:center;gap:6px;background:var(--brand);color:var(--on-brand);border:1px solid var(--brand);border-radius:999px;padding:7px 13px;font:600 12.5px var(--mono);text-decoration:none;cursor:pointer;min-height:34px;white-space:nowrap}
+.d3-go:hover{filter:brightness(1.06)}
+.d3-ghost{display:inline-flex;align-items:center;gap:6px;background:var(--chip);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font:500 12.5px var(--mono);cursor:pointer;min-height:34px;white-space:nowrap}
+.d3-ghost:hover{border-color:var(--accent)}
+.d3-cap{flex-shrink:0;min-height:44px;display:flex;gap:10px;align-items:center;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--chip);font-size:13.5px;color:var(--ink)}
+.d3-cap b{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);white-space:nowrap}
+.d3-cap .txt{min-width:0;flex:1 1 auto}
+.d3-cap .steps{display:none;gap:6px;flex:0 0 auto}
+.d3-cap.touring .steps{display:flex}
+.d3-cap .steps button{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font:500 12px var(--mono);cursor:pointer;min-height:30px}
+.d3-cap .steps button:hover{border-color:var(--accent)}
+.d3-sheet{border:1px solid color-mix(in srgb,var(--accent) 38%,var(--line));border-radius:14px;background:var(--panel);padding:22px 24px 26px;scroll-margin-top:12px}
+.sh-top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px 20px;flex-wrap:wrap}
+.sh-cap{font:500 11px var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--mute)}
+.sh-title{display:flex;align-items:baseline;gap:14px;margin-top:8px;min-width:0}
+.sh-num{font:700 54px/.85 var(--mono);color:color-mix(in srgb,var(--ink) 16%,transparent);flex:0 0 auto}
+.sh-title h2{margin:0;font:600 clamp(26px,3.2vw,40px)/1.05 var(--mono);color:var(--accent);overflow-wrap:anywhere}
+.sh-sub{font:500 12px/1.5 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin-top:10px}
+.sh-acts{display:flex;gap:6px;flex-wrap:wrap}
+.sh-index{display:flex;gap:6px;flex-wrap:wrap;margin:18px 0 0;padding:14px 0 0;border-top:1px solid var(--line)}
+.sh-index button{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:5px 11px;font:500 12px var(--mono);cursor:pointer;color:var(--mute)}
+.sh-index button i{font-style:normal;color:color-mix(in srgb,var(--ink) 40%,transparent);margin-right:6px}
+.sh-index button:hover{border-color:var(--accent);color:var(--ink)}
+.sh-index button[aria-current="true"]{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--chip))}
+.sh-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr);gap:20px 28px;margin-top:22px}
+.sh-col{min-width:0}
+.d3-sheet h4{margin:0 0 8px;font:500 10.5px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+.d3-sheet h4:not(:first-child){margin-top:20px}
+.sh-lede{margin:0 0 16px;font-size:18px;line-height:1.6;color:var(--ink);max-width:62ch}
+.sh-why{margin:0;font-size:15px;line-height:1.65;color:var(--mute);max-width:62ch}
+.d3-try{padding:14px 16px 16px;border:1px solid color-mix(in srgb,var(--accent) 50%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.d3-try h4{color:var(--accent)}
+.d3-try p{margin:0 0 12px;font-size:14.5px;line-height:1.55}
+.d3-chips{display:flex;gap:6px;flex-wrap:wrap}
+.d3-chips span{font:500 11.5px var(--mono);border:1px solid var(--line);padding:5px 8px;border-radius:6px;background:var(--chip);color:var(--ink)}
+.d3-chips .acc{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));color:var(--accent);letter-spacing:.08em;text-transform:uppercase;font-size:10.5px}
+.sh-links{display:flex;flex-direction:column;gap:6px}
+.sh-links button{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;align-items:baseline;text-align:left;background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}
+.sh-links button:hover{border-color:var(--accent)}
+.sh-links .dir{font:600 13px var(--mono);color:var(--accent);grid-row:span 2}
+.sh-links b{font:600 13.5px var(--mono)}
+.sh-links small{font:12px/1.35 var(--sans);color:var(--mute)}
+.d3-words{margin:0;font-size:14px;line-height:1.55}
+.d3-words dt{font:600 13px var(--mono)}
+.d3-words dt:not(:first-child){margin-top:10px}
+.d3-words dd{margin:2px 0 0;color:var(--mute)}
+@media (max-width:1100px){.sh-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.sh-grid .sh-main{grid-column:1/-1}}
+@media (max-width:760px){
+  .app{padding:14px 16px 24px;gap:10px}
+  html.embed .app{padding:3px 3px 8px}
+  .d3-head h1{font-size:19px}
+  .d3-head p{font-size:13px}
+  .d3-bar{gap:5px}
+  .d3-bar button{padding:5px 10px;font-size:12px;min-height:32px}
+  .d3-frame{display:contents}
+  .app>*,.d3-frame>*{flex-shrink:0}
+  .d3-head{order:0}.d3-frame .d3-stage{order:1}.d3-pick{order:2}.d3-tip{order:3}.d3-cap{order:4}.d3-nav{order:5}.d3-sheet{order:6}
+  .d3-stage{position:relative;inset:auto;height:min(64vh,560px);min-height:340px;flex:0 0 auto}
+  html.embed .d3-stage{height:420px;min-height:0}
+  .d3-hud{position:static;width:auto;max-width:none}
+  .d3-pick{max-width:none}
+  .d3-tip{font-size:11px;margin-top:-4px}
+  .d3-nav{margin:0 -16px;padding:2px 16px 6px}
+  html.embed .d3-nav{margin:0;padding:2px 0 6px}
+  .d3-lbl{font-size:10.5px}
+  .d3-cap{font-size:13px;flex-wrap:wrap}
+  .d3-sheet{padding:18px 16px 20px}
+  .sh-num{font-size:40px}
+  .sh-grid{grid-template-columns:minmax(0,1fr);gap:4px}
+  .sh-lede{font-size:16.5px}
+}
+@media (pointer:coarse){.d3-stage{touch-action:pan-y}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="d3-head">
+    <div class="d3-title">
+      <span class="kick"><a href="../">GEO Observability</a> · how it works</span>
+      <h1>GEO Observability in 3D</h1>
+      <p>Ten parts, one loop. Each block is one part of the system. Click any part, then read its breakdown under the map. Press Run the loop for a guided tour.</p>
+    </div>
+    <div class="d3-bar" role="toolbar" aria-label="3D diagram controls">
+      <button type="button" data-a="tour" aria-pressed="false">Run the loop</button>
+      <button type="button" data-a="flow" aria-pressed="true">Flow</button>
+      <button type="button" data-a="spin" aria-pressed="true">Auto rotate</button>
+      <button type="button" data-a="explode" aria-pressed="false">Explode</button>
+      <button type="button" data-a="top" aria-pressed="false">Top view</button>
+      <button type="button" data-a="reset">Reset view</button>
+    </div>
+  </header>
+  <div class="d3-frame" id="map">
+    <div class="d3-stage" aria-label="3D map of GEO Observability: your prompts and your website on the left, the scheduler, run workflow, scoring, store, insights and portal on Cloudflare in the middle, and AI Gateway and the AI assistants on the right"><div class="d3-labels"></div></div>
+    <p class="d3-hud d3-tip">Drag to orbit and tilt · scroll or pinch to zoom · click any part or its name</p>
+    <div class="d3-hud d3-pick" aria-live="polite"></div>
+    <nav class="d3-hud d3-nav" role="tablist" aria-label="The ten parts. Use the left and right arrow keys to move between them."></nav>
+  </div>
+  <div class="d3-cap" aria-live="polite"><b>Loop</b><span class="txt"></span><span class="steps"><button type="button" data-s="-1" aria-label="Previous step">‹ Back</button><button type="button" data-s="1" aria-label="Next step">Next ›</button></span></div>
+  <section class="d3-sheet" id="breakdown" aria-label="Component breakdown" tabindex="-1"></section>
+</main>
+<script src="../vendor/three.min.js" defer></script>
+<script src="../vendor/gsap.min.js" defer></script>
+<script src="./anatomy3d.js" defer></script>
+</body>
+</html>

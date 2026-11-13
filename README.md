@@ -5,36 +5,83 @@
 [![deploy-staging](https://github.com/Organized-AI/geo-observability/actions/workflows/deploy-staging.yml/badge.svg?branch=main)](https://github.com/Organized-AI/geo-observability/actions/workflows/deploy-staging.yml)
 [![release](https://github.com/Organized-AI/geo-observability/actions/workflows/release.yml/badge.svg)](https://github.com/Organized-AI/geo-observability/actions/workflows/release.yml)
 
-**Live app:** [app.organizedai.vip/geo-observability](https://app.organizedai.vip/geo-observability) · **User guide:** [/docs](https://app.organizedai.vip/geo-observability/docs/) · **How it ships:** [DOCUMENTATION/gitops.md](DOCUMENTATION/gitops.md) · **Source:** [github.com/Organized-AI/geo-observability](https://github.com/Organized-AI/geo-observability) (private)
+**Live app:** [app.organizedai.vip/geo-observability](https://app.organizedai.vip/geo-observability) · **How it works in 3D:** [/how-it-works](https://app.organizedai.vip/geo-observability/how-it-works/) · **User guide:** [/docs](https://app.organizedai.vip/geo-observability/docs/)
 
-A Cloudflare-native tool that shows where AI assistants recommend a brand, and what those answers are worth. It is for agencies and in-house teams who need to know whether ChatGPT, Claude, Gemini and Perplexity name their brand, which sources those answers lean on, and whether AI traffic turns into revenue. For each client project it delivers:
+A Cloudflare-native tool that shows where AI assistants recommend a brand, and what those answers are worth. It is for agencies and in-house teams who need to know whether ChatGPT, Claude, Gemini and Perplexity name their brand, which sources those answers lean on, and whether AI traffic turns into revenue. For each client it delivers:
 
-1. **Tracking.** Prompts run daily (or weekly) per engine and country through Cloudflare AI Gateway, with the raw answer kept in R2 and every call logged, costed and traceable.
-2. **Scores.** Visibility, share of voice, position, sentiment, win rate and citations (cited vs used), plus fan-out queries, brand perception and fact checks against the facts you set.
-3. **Observability.** AI crawler hits and AI-referred visits captured at the edge, and server-side conversions (sGTM, GA4, Google Ads, Meta, TikTok, Shopify), joined to the pages the answers cite.
+1. **Tracking.** The questions buyers ask, put to every assistant on a schedule, per country, with the raw answer kept and every call logged.
+2. **Scores.** Visibility, share of voice, position, sentiment, win rate and citations, plus brand perception and fact checks against the facts you set.
+3. **Observability.** AI crawlers and AI-referred visits captured at the edge, and server-side conversions, joined to the pages the answers cite.
 4. **Actions.** Daily insights, ranked actions and content briefs, written from the evidence.
-5. **Access.** A client portal with public signup and emailed sign-in links, read-only share links, a REST API (`/api/v1`) and an MCP server (`/mcp`).
+5. **Access.** A client portal, read-only share links, a REST API and an MCP server, so people and their AI tools see the same numbers.
 
-**Pricing:** 14-day free trial (card on file at signup), then $150 a month per workspace plus token usage at cost, billed through Stripe (test mode until live billing is approved). Details: [SPECIFICATIONS/billing.md](SPECIFICATIONS/billing.md).
+## How it works
 
-## Where each piece lives
+[![GEO Observability in 3D: ten parts, one loop. Open the interactive version.](ARCHITECTURE/assets/how-it-works-3d.gif)](https://app.organizedai.vip/geo-observability/how-it-works/)
 
-| Capability | Where it is |
-|---|---|
-| Engines (ChatGPT, Claude, Gemini, Perplexity; labelled stub without a key; Alexa listed as unavailable) | `src/engines/` (`providers.ts`, `gateway.ts`, `stub.ts`, `registry.ts`) |
-| Mention matching, ranking and the Workers AI judge | `src/judge/` (`mentions.ts` deterministic, `llm.ts` judge with rules fallback) |
-| Passes: plan → queue → one Workflow per prompt × engine × country × day | `src/workflows/` (`scheduler.ts`, `run-prompt.ts`, `pipeline.ts`), `src/durable/progress.ts` (live progress) |
-| Reports, filters and daily rollups | `src/metrics/` |
-| Crawler and referral classification, ingest, the Pages table | `src/observability/`, `edge/` (tap Worker for client zones), `public/tap.js` |
-| Insights, actions and briefs | `src/insights/engine.ts` |
-| Portal API, public API v1, MCP | `src/routes/portal.ts`, `src/routes/v1.ts`, `src/mcp/server.ts` |
-| Signup, emailed sign-in, sessions | `src/routes/auth.ts`, `src/lib/auth.ts`, `src/lib/session.ts`, `src/lib/mailer.ts`, `public/signup/`, `public/login/` |
-| Billing: Checkout, trial, metering, webhooks | `src/billing/`, `src/routes/billing.ts`, `scripts/stripe-setup.mjs` |
-| Serving under app.organizedai.vip/geo-observability | `src/lib/basepath.ts`, `routes` in `wrangler.jsonc` |
-| Client portal, landing page, user guide | `public/app/`, `public/index.html`, `docs-src/` → `public/docs/` |
-| Schema | `migrations/` (D1, append-only) |
-| Infrastructure per environment | `wrangler.jsonc`, `infra/environments.json`, `scripts/infra.mjs` ([infra/README.md](infra/README.md)) |
-| CI/CD | `.github/workflows/`, `scripts/deploy.mjs`, `scripts/version.mjs` ([DOCUMENTATION/gitops.md](DOCUMENTATION/gitops.md)) |
+**[Open the interactive 3D map →](https://app.organizedai.vip/geo-observability/how-it-works/)** Drag to orbit, click any part for its breakdown, or press Run the loop for a guided tour. GitHub can't run interactive 3D inside a README, so the animation above is a recording and links to the live page.
+
+```mermaid
+flowchart LR
+  subgraph inputs[" "]
+    P["Your prompts<br/>questions, brands, competitors, countries"]
+    W["Your website<br/>crawlers, AI visits, conversions"]
+  end
+  subgraph cf["Cloudflare"]
+    S["Scheduler and queue"]
+    R["Run workflow<br/>one per prompt × assistant × country × day"]
+    G["AI Gateway<br/>logs, cost, limits"]
+    J["Scoring<br/>matching + AI judge"]
+    D[("The store<br/>scores, raw answers, time series")]
+    I["Insights and actions"]
+    U["Portal · API · MCP"]
+  end
+  A["AI assistants<br/>ChatGPT · Claude · Gemini · Perplexity"]
+  P -- every day --> S -- one run each --> R -- ask --> G -- official API --> A
+  A -. answers .-> R
+  R -- score --> J -- mentions, citations --> D
+  W -- visits, conversions --> D
+  D -- every morning --> I -- insights, actions --> U
+  D -- reports --> U
+```
+
+### One run, step by step
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Q as Queue
+  participant R as Run workflow
+  participant G as AI Gateway
+  participant A as AI assistant
+  participant J as Scoring
+  participant D as Store
+  Q->>R: prompt × assistant × country × day
+  R->>R: workspace active? within budget?
+  R->>G: ask, tagged with client and prompt
+  G->>A: official API, web search on
+  A-->>G: answer with sources
+  G-->>R: answer (cost and latency logged)
+  R->>D: keep the raw answer
+  R->>J: who is named, in what order, with which sources and tone
+  J->>D: mentions, citations, sentiment, claims
+  Note over R,D: every step is saved, so a failure retries one step, not the run
+```
+
+### How it ships
+
+```mermaid
+flowchart LR
+  PR["Pull request"] --> CI{"PR Gate<br/>+ security scans"}
+  CI -- green --> M["main"]
+  M --> ST["Staging<br/>migrate · deploy · health check"]
+  M -. release tag .-> RV{"Release checks<br/>tag on main · version agrees · staging ran it"}
+  RV --> PD["Production<br/>migrate · deploy · health check"]
+  PD --> GR["GitHub Release<br/>notes from the changelog"]
+  PD -. if needed .-> RB["Rollback<br/>previous Worker version"]
+```
+
+Git is the only way a change reaches Cloudflare. Every merge deploys staging; production changes only from a version tag, and every deploy reports its version on a health check. Details: [DOCUMENTATION/gitops.md](DOCUMENTATION/gitops.md).
 
 ---
 
@@ -43,95 +90,34 @@ A Cloudflare-native tool that shows where AI assistants recommend a brand, and w
 ```bash
 npm ci
 npm run db:migrate:local && npm run seed:demo:local
-npm run dev:offline      # http://localhost:8787 · /app/ (demo workspace) · /docs/
-npm run check            # types, lint, Workers tests, script tests, version + infra checks, docs, bundles
+npm run dev:offline      # the landing page, the demo portal at /app/, the guide at /docs/, the 3D map at /how-it-works/
+npm run check            # types, lint, tests, version and infra checks, docs, bundles
 ```
 
-No Cloudflare login and no provider keys are needed. Engines without a key run on a clearly labelled stub, and Workers AI features fall back to rules, so the whole pipeline runs end to end. `cp .dev.vars.example .dev.vars && npm run dev` runs against real bindings instead.
+No Cloudflare login and no provider keys are needed. Assistants without a key answer from a clearly labelled stub and AI features fall back to rules, so the whole loop runs end to end.
 
 ## Deploy
 
-Git is the only way a change reaches Cloudflare:
-
-```
- pull request ─► ci (PR Gate) + security ─► squash-merge to main
- push to main ─► deploy-staging: checks → staging D1 migrations → wrangler deploy --env staging → /healthz = this commit
- tag vX.Y.Z   ─► release: tag on main · version = package.json = CHANGELOG · every check · staging ran this commit
-                  └─► production: D1 migrations → wrangler deploy --tag vX.Y.Z → /healthz = vX.Y.Z → GitHub Release
- rollback     ─► Actions → rollback (or npx wrangler rollback): previous Worker version, D1 untouched
-```
-
 ```bash
-npm run release:prepare -- minor         # [Unreleased] → ## [X.Y.Z] - date, bumps package.json; merge it, then:
-git tag -a v1.4.0 -m v1.4.0 && git push origin v1.4.0
-npm run infra:plan -- --env staging      # what exists in Cloudflare, what is missing, which required secrets are unset
-npm run deploy:staging                   # the same script CI runs; deploy:production is for emergencies
+npm run infra:plan -- --env staging      # what an environment has in Cloudflare and what it is missing
+npm run infra:apply -- --env staging     # create what is missing
+npm run release:prepare -- minor         # turn the changelog into a version; merge it, then tag main to release
 ```
 
-One-time setup (API token permissions, GitHub secrets and variables, environments, staging resources) is in [DOCUMENTATION/gitops.md](DOCUMENTATION/gitops.md); secrets and the public address in [DOCUMENTATION/deploy.md](DOCUMENTATION/deploy.md); sign-in email in [DOCUMENTATION/sign-in-email.md](DOCUMENTATION/sign-in-email.md); Stripe in [DOCUMENTATION/stripe-billing.md](DOCUMENTATION/stripe-billing.md).
+One-time setup, releases and rollback: [DOCUMENTATION/gitops.md](DOCUMENTATION/gitops.md). Secrets, the public address and sign-in email: [DOCUMENTATION/deploy.md](DOCUMENTATION/deploy.md). Infrastructure per environment: [infra/README.md](infra/README.md).
 
----
-
-## How it works
-
-```
- Cron 06:00 UTC (daily; weekly projects on Mondays), onboarding "finish" or "Run now"
-        │  planPass: active prompts × enabled engines × countries, within plan limits
-        ▼
- runs (queued) ─► RunProgress Durable Object (live progress) ─► Queue (dead-letter queue after 3 tries)
-        ▼
- ┌─ RunPromptWorkflow, one per prompt × engine × country × day ────────────────────────┐
- │ preflight: workspace active · billing gate · monthly spend cap                      │
- │ ask ─► AI Gateway (metadata: tenant, project, prompt, engine, run; logs, cost, OTel)│
- │          ChatGPT Responses + web search · Claude + web search · Gemini + Google     │
- │          Search · Perplexity Sonar · stub when a key is missing                     │
- │ store raw answer ─► R2                                                              │
- │ score: deterministic mentions + rank ─► Workers AI judge (sentiment, new brands,    │
- │        perception, claims vs your facts) ─► rules fallback                          │
- │ persist ─► D1 (runs, mentions, citations, fan-out queries, claims, usage)           │
- │            Analytics Engine (visibility events)                                     │
- └─────────────────────────────────────────────────────────────────────────────────────┘
-        ▼
- hourly: rollups · usage pushed to Stripe meters        09:00: InsightsWorkflow ─► insights + ranked actions
-
- Observability layer
-   edge tap Worker (client zone)      ─► /ingest/edge         AI bots + AI-referred arrivals
-   tap.js on any site                 ─► /ingest/hit          AI-referred page views
-   sGTM · GA4 · Ads · Meta · Shopify  ─► /ingest/conversion   server-side conversions (event_id dedupe)
-        └─► joined on path + day with citations of the client's domains ─► Pages table
-```
-
-Metric definitions and the full data model are in [ARCHITECTURE/overview.md](ARCHITECTURE/overview.md); the API in [ARCHITECTURE/API.md](ARCHITECTURE/API.md).
-
-### Design choices
+## Design choices
 
 | Choice | Why |
 |---|---|
-| **Official APIs through AI Gateway, never scraped UIs** | Every answer is reproducible, costed and logged in one place, and nothing signs in to a third-party app. Alexa stays "unavailable" because it has no public answer API. |
-| **Deterministic scoring first, LLM judge second** | Mentions and rank come from matching, so the numbers are stable; the judge adds sentiment, perception and claim checks, with a rules fallback when Workers AI is unavailable. |
-| **One Workflow per prompt × engine × country × day** | The instance id is the run id, so re-queuing is idempotent and a failed engine retries alone. |
-| **Edge capture without log pipelines** | A small tap Worker on the client's zone (or `tap.js`) records AI crawlers and AI referrals directly, so the observability layer works without CDN log exports. |
-| **Tenant isolation in one place** | All client data goes through `TenantDB` (`src/lib/db.ts`), where `tenant_id = ?1` is mandatory. |
-| **Stub engine, labelled** | A missing key never breaks a pass; the answer is marked as stub everywhere it shows. |
-| **Staging mirrors production and shares nothing** | Own Worker, D1, KV, R2, queues, Workflows, datasets and AI Gateway, and no routes. `npm run infra:check` fails CI otherwise. |
-| **Releases are tags** | Production changes only from a `vX.Y.Z` tag that agrees with `package.json` and `CHANGELOG.md`; the Worker version carries the tag and `/healthz` reports it. |
-
-## Configuration
-
-Plain vars are in `wrangler.jsonc`; secrets are set with `npx wrangler secret put <NAME> [--env staging]` and listed by environment in [infra/environments.json](infra/environments.json). The main ones:
-
-| Name | Kind | Meaning |
-|---|---|---|
-| `APP_URL` | var | Public address; its path is the base path (`""` turns it off) |
-| `DEMO_MODE` | var | `"true"` serves a read-only demo workspace at `/app/` |
-| `OPENAI_MODEL` · `ANTHROPIC_MODEL` · `GEMINI_MODEL` · `PERPLEXITY_MODEL` · `JUDGE_MODEL` | var | Model ids per engine and for the judge |
-| `AI_GATEWAY_ID` | var | AI Gateway that every engine call goes through |
-| `STRIPE_LIVE_MODE` · `STRIPE_AUTOMATIC_TAX` | var | Both `"false"` until live billing and Stripe Tax are approved |
-| `SHARE_LINK_SECRET` · `EMAIL_FROM` | secret | Required: share-link signing; sender for sign-in links |
-| `OPENAI_API_KEY` · `ANTHROPIC_API_KEY` · `GEMINI_API_KEY` · `PERPLEXITY_API_KEY` | secret | Engine keys; a missing one means that engine runs on the stub |
-| `CLOUDFLARE_ACCOUNT_ID` · `CF_AIG_TOKEN` | secret | Route engine calls through the authenticated AI Gateway |
-| `STRIPE_SECRET_KEY` · `STRIPE_WEBHOOK_SECRET` · `STRIPE_BILLING_CONFIG` | secret | Billing; without them signup and card billing stay off |
-| `AGENCY_EMAILS` | secret | Staff who see every client workspace |
+| **Official APIs through AI Gateway, never scraped UIs** | Every answer is reproducible, costed and logged in one place, and nothing signs in to a third-party app. |
+| **Deterministic scoring first, AI judge second** | Mentions and rank come from matching, so the numbers are stable from day to day; the judge adds tone, perception and claim checks, with a rules fallback. |
+| **One small workflow per run** | Each prompt, assistant, country and day is its own run, saved step by step, so a slow or failed answer retries alone and never costs a whole pass. |
+| **Edge capture without log pipelines** | A small tap on the client's site records AI crawlers and AI referrals directly, so the observability layer works without exporting CDN logs. |
+| **Tenant isolation in one place** | Every query for client data goes through one database layer that always scopes it to the workspace. |
+| **Labelled stub, never a silent gap** | A missing provider key never breaks a pass, and a stub answer is marked as one wherever it shows. |
+| **Staging mirrors production and shares nothing** | Its own Worker and its own copy of every resource; a check in CI fails if staging would touch production. |
+| **Releases are tags** | Production moves only on a version tag that agrees with the changelog, and the running version is visible on a health check. |
 
 ## Project layout
 
@@ -139,47 +125,43 @@ Organized Codebase layout; [CLAUDE.md](CLAUDE.md) has the conventions and the ru
 
 ```
 src/                      the Worker
-  engines/ · judge/       provider clients through AI Gateway, stub · mention matching, Workers AI judge
-  workflows/ · durable/   scheduler, RunPromptWorkflow, pipeline steps · live pass progress
+  engines/ · judge/       assistant clients through AI Gateway, stub · mention matching, AI judge
+  workflows/ · durable/   scheduler, run workflow, pipeline steps · live pass progress
   metrics/ · insights/    reports, filters, rollups · insights, actions, briefs
-  observability/          bot and referral classification, ingest, Pages table
-  routes/ · mcp/          portal API, /api/v1, auth, billing routes · MCP server
-  billing/ · lib/         Stripe client, metering, webhooks · TenantDB, auth, sessions, mailer, base path
-public/                   landing page, portal (/app), signup, login, generated docs (/docs), tap.js
-docs-src/                 user guide sources (Markdown) → npm run build:docs
-edge/                     tap Worker deployed on a client's zone
-migrations/               D1 schema, append-only
-infra/                    environments.json + README: every resource per environment
-scripts/                  deploy, infra, version, docs build, demo seed, offline dev, Stripe setup
-test/ · test-scripts/     Workers-runtime tests · tests for the deploy, infra and version tooling
-.github/                  workflows, CODEOWNERS, Dependabot, PR template
-CONFIG/                   GitHub environments and rulesets as code, Stripe plan
-ARCHITECTURE/ · PLANNING/ · SPECIFICATIONS/ · DOCUMENTATION/ · AGENT-HANDOFF/   Organized Codebase docs
+  observability/          crawler and referral classification, ingest, the Pages table
+  routes/ · mcp/          portal API, public API, sign-in, billing routes · MCP server
+  billing/ · lib/         billing and metering · database layer, auth, sessions, mail, base path
+public/                   landing page, portal, signup, sign-in, user guide, 3D map (how-it-works/), site tag
+docs-src/                 user guide sources → npm run build:docs
+edge/                     tap Worker for a client's site
+migrations/               database schema, append-only
+infra/                    every resource per environment
+scripts/                  deploy, infra, version, docs build, demo seed, offline dev, billing setup
+test/ · test-scripts/     Workers-runtime tests · tests for the delivery tooling
+ARCHITECTURE/ · PLANNING/ · SPECIFICATIONS/ · DOCUMENTATION/ · AGENT-HANDOFF/ · CONFIG/   Organized Codebase docs
 ```
 
 ## Making changes quickly
 
 | To… | Do this |
 |---|---|
-| Add an engine | Add a client in `src/engines/providers.ts`, register it in `registry.ts`, add its key to `infra/environments.json` |
-| Change a model | Edit the `*_MODEL` var in `wrangler.jsonc` (production and staging) |
+| Add an assistant | Add a client in `src/engines/`, register it, and list its key for each environment in `infra/` |
+| Change a model | Edit the model var in `wrangler.jsonc` for production and staging |
 | Change the schema | Add the next numbered file in `migrations/`; keep it compatible with the running release |
-| Add a binding | Add it to production and staging in `wrangler.jsonc` with different names, then `npm run infra:check` and `npm run infra:apply -- --env <env>` |
-| Change prices | Edit `CONFIG/stripe-plan.json` and run `npm run stripe:setup` (owner only) |
-| Write user docs | Edit `docs-src/`, run `npm run build:docs`, commit `public/docs/` |
+| Add a binding | Add it to production and staging with different names, then `npm run infra:check` and `infra:apply` |
+| Change the 3D map | Edit the parts, links and tour in `public/how-it-works/anatomy3d.js` |
+| Write user docs | Edit `docs-src/`, run `npm run build:docs` |
 | Ship | Pull request → merge (staging) → `npm run release:prepare` → tag (production) |
 
 ## Support, contributing and security
 
-- **Contributing:** see [CONTRIBUTING.md](CONTRIBUTING.md) (branching, checks, changelog, releases) and [CLAUDE.md](CLAUDE.md) (repo map and rules for coding agents).
-- **Security:** see [SECURITY.md](SECURITY.md). Secrets live only in Cloudflare and GitHub secrets; gitleaks, zizmor and Trivy run on every pull request.
-- **Changes:** every release is in [CHANGELOG.md](CHANGELOG.md) and on the repository's Releases page.
+- **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) (branching, checks, changelog, releases) and [CLAUDE.md](CLAUDE.md) (repo map and rules for coding agents).
+- **Security:** [SECURITY.md](SECURITY.md). Secrets live only in Cloudflare and GitHub; secret, workflow and dependency scans run on every pull request.
+- **Changes:** every release is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Limitations and next steps
 
-- **Engines need keys.** Until provider keys are set, each engine answers from the labelled stub. Model ids are vars and should be checked against each provider's current list.
-- **AI Gateway logging** needs `CLOUDFLARE_ACCOUNT_ID` and `CF_AIG_TOKEN` on the Worker and the gateway to exist (`npm run infra:apply` creates it).
-- **Alexa** can't be tracked: there is no public way to read Alexa+ answers.
-- **Billing** runs in Stripe test mode; live mode and Stripe Tax wait for the owner's go-ahead.
-- **GitHub plan.** Required reviewers on production and the `main` and tag rulesets need GitHub Team for a private repository; `CONFIG/github/setup.sh` applies them once available. Until then any `v*` tag deploys production.
-- **Test tooling.** `@cloudflare/vitest-pool-workers` is deprecated in favour of `@cloudflare/vitest-plugin`; migrate when convenient.
+- **Assistants need keys.** Until provider keys are set, each assistant answers from the labelled stub.
+- **Alexa** can't be tracked: there is no public way to read its answers.
+- **Billing** runs in test mode until live billing is approved.
+- **The 3D map** needs WebGL; without it, the page still lists and explains every part.

@@ -6,6 +6,8 @@ import { spawn } from "node:child_process";
 const strip = (s) => s.replace(/("(?:[^"\\]|\\.)*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (m, str) => str ?? "");
 const cfg = JSON.parse(strip(readFileSync("wrangler.jsonc", "utf8")).replace(/,(\s*[}\]])/g, "$1"));
 delete cfg.ai;
+// Remote bindings need a Cloudflare login; offline, the email binding runs locally (sign-in links go to the D1 outbox).
+if (cfg.send_email) cfg.send_email = cfg.send_email.map(({ remote, ...b }) => b);
 delete cfg.env;
 cfg.main = "../src/index.ts";
 cfg.assets.directory = "../public";
