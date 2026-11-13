@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.4
+- Email Service gets the sender as a plain address string, as in Cloudflare's example; a malformed EMAIL_FROM is caught before sending and the error names what is set.
+
 ## 1.2.3
 - Sign-in email failures are visible: every send is logged in `email_log` (migration 0005) with the provider's error code, `/login/`, signup and the post-Checkout page say why a send failed, and owners get a Sign-in email card on Usage & API with a test button (`GET /api/email/status`, `POST /api/email/test`).
 - EMAIL_FROM can be written as `Name <address>`.

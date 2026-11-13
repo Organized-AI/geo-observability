@@ -56,6 +56,8 @@ export function emailFailureReason(code: string, fromDomain: string): string {
     case "E_DAILY_LIMIT_EXCEEDED":
       return "The sending limit was reached. Try again later.";
     case "E_VALIDATION_ERROR":
+      return "Cloudflare rejected one of the addresses. Check EMAIL_FROM is a plain address like signin@organizedai.vip.";
+    case "bad_from":
     case "E_FIELD_MISSING":
       return "EMAIL_FROM isn't a valid address. Set it to something like signin@yourdomain.com.";
     case "E_DELIVERY_FAILED":
@@ -80,9 +82,12 @@ async function logEmail(env: Env, row: { to: string; provider: MailerKind; statu
   }
 }
 
-function failed(env: Env, code: string, fromEmail: string): HttpError {
+const VALID_ADDRESS = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
+function failed(env: Env, code: string, fromEmail: string, detail = ""): HttpError {
   const domain = fromEmail.split("@")[1] ?? "";
-  return new HttpError(502, "email_failed", `We couldn't send the email: ${emailFailureReason(code, domain)} (${code || "unknown"})`);
+  const reason = code === "E_VALIDATION_ERROR" ? `Cloudflare rejected an address (${detail.slice(0, 120)}). The sender was "${fromEmail}".` : emailFailureReason(code, domain);
+  return new HttpError(502, "email_failed", `We couldn't send the email: ${reason} (${code || "unknown"})`);
 }
 
 export async function sendMail(env: Env, mail: Mail, fetcher?: typeof fetch): Promise<void> {
@@ -94,8 +99,13 @@ export async function sendMail(env: Env, mail: Mail, fetcher?: typeof fetch): Pr
       await logEmail(env, { to: mail.to, provider: kind, status: "sent" });
       return;
     case "cloudflare": {
+      if (!VALID_ADDRESS.test(from.email)) {
+        await logEmail(env, { to: mail.to, provider: kind, status: "failed", code: "bad_from", detail: `EMAIL_FROM parsed as "${from.email}"` });
+        throw new HttpError(502, "email_failed", `We couldn't send the email: EMAIL_FROM is "${from.email}", which isn't a valid address. Set it to something like signin@organizedai.vip. (bad_from)`);
+      }
       try {
-        const r = await (env.EMAIL as unknown as SendEmailBinding).send({ to: mail.to, from, subject: mail.subject, text: mail.text, html: mail.html });
+        // Plain string sender, exactly as Cloudflare's Email Sending example passes it.
+        const r = await (env.EMAIL as unknown as SendEmailBinding).send({ to: mail.to, from: from.email, subject: mail.subject, text: mail.text, html: mail.html });
         console.log("email sent", "cloudflare", r?.messageId ?? "");
         await logEmail(env, { to: mail.to, provider: kind, status: "sent", messageId: r?.messageId ?? null });
       } catch (e) {
@@ -103,7 +113,7 @@ export async function sendMail(env: Env, mail: Mail, fetcher?: typeof fetch): Pr
         const detail = String((e as Error)?.message ?? e);
         console.error("email send failed", "cloudflare", code, detail);
         await logEmail(env, { to: mail.to, provider: kind, status: "failed", code, detail });
-        throw failed(env, code, from.email);
+        throw failed(env, code, from.email, detail);
       }
       return;
     }

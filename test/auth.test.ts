@@ -182,7 +182,7 @@ describe("email failures are visible", () => {
     });
     expect(parseFrom(e)).toEqual({ email: "signin@organizedai.vip", name: "Organized AI" });
     await sendMail(e, { to: "a@b.test", subject: "s", text: "t" });
-    expect(sent.from).toEqual({ email: "signin@organizedai.vip", name: "Organized AI" });
+    expect(sent.from).toBe("signin@organizedai.vip");
     const row = await anon.DB.prepare("SELECT status, message_id FROM email_log WHERE to_email = 'a@b.test'").first<{ status: string; message_id: string }>();
     expect(row).toEqual({ status: "sent", message_id: "msg_1" });
   });
@@ -194,6 +194,11 @@ describe("email failures are visible", () => {
     await expect(sendMail(e, { to: "c@d.test", subject: "s", text: "t" })).rejects.toThrow(/organizedai\.vip isn't onboarded to Cloudflare Email Service/);
     const row = await anon.DB.prepare("SELECT status, code FROM email_log WHERE to_email = 'c@d.test'").first<{ status: string; code: string }>();
     expect(row).toEqual({ status: "failed", code: "E_SENDER_DOMAIN_NOT_AVAILABLE" });
+  });
+
+  it("refuses a sender that isn't an address and names what is set", async () => {
+    const e = cfEnv(async () => ({ messageId: "never" }), "signin at organizedai");
+    await expect(sendMail(e, { to: "g@h.test", subject: "s", text: "t" })).rejects.toThrow(/EMAIL_FROM is "signin at organizedai"/);
   });
 
   it("the sign-in form shows the reason instead of saying a link is on its way", async () => {
