@@ -5,6 +5,8 @@ import { aggregateUsage, billingAllowsRuns, billingLocks, billingStatus, statusA
 import { billingEnabled, keyMode, parseBillingConfig } from "../src/billing/config";
 import { checkoutParams, formEncode, hourTimestamp, stripeProvider, stripeSignature, verifyStripeSignature } from "../src/billing/stripe";
 import { mapSubscriptionStatus } from "../src/billing/webhooks";
+import { StripeError } from "../src/billing/stripe";
+import { stripeFailure } from "../src/routes/billing";
 import { hourKey } from "../src/lib/util";
 
 const env = rawEnv as unknown as Env;
@@ -101,6 +103,18 @@ describe("Stripe helpers", () => {
     expect(billingEnabled({ ...base, STRIPE_SECRET_KEY: "sk_live_abc", STRIPE_LIVE_MODE: "true" })).toBe(true);
     expect(billingEnabled({ ...base, STRIPE_SECRET_KEY: "sk_test_abc", STRIPE_BILLING_CONFIG: "{bad" })).toBe(false);
     expect(parseBillingConfig(JSON.stringify({ ...CONFIG, platform_price: "nope" }))).toBeNull();
+  });
+
+  it("turns Stripe failures into readable messages without leaking keys", () => {
+    const bad = stripeFailure(new StripeError(401, null, "Invalid API Key provided: sk_test_abcdEFGH1234"));
+    expect(bad.status).toBe(502);
+    expect(bad.code).toBe("billing_misconfigured");
+    expect(bad.message).toContain("sk_test_…");
+    expect(bad.message).not.toContain("abcdEFGH1234");
+    const price = stripeFailure(new StripeError(400, "resource_missing", "No such price: 'price_x'"));
+    expect(price.code).toBe("billing_error");
+    expect(price.message).toContain("No such price");
+    expect(stripeFailure(new StripeError(0, "network", "boom")).code).toBe("billing_unavailable");
   });
 
   it("maps Stripe subscription statuses", () => {

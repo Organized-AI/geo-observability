@@ -17,7 +17,7 @@ import { sendSignInLink } from "./auth";
 import { HttpError, newId, nowIso } from "../lib/util";
 import { appOrigin, billingEnabled, requireBilling } from "../billing/config";
 import { billingLocks, billingStatus } from "../billing/hooks";
-import { Stripe, checkoutParams, verifyStripeSignature } from "../billing/stripe";
+import { Stripe, StripeError, checkoutParams, verifyStripeSignature } from "../billing/stripe";
 import { handleStripeEvent, type StripeEvent } from "../billing/webhooks";
 
 type BillingEnv = { Bindings: Env; Variables: { session: Session } };
@@ -55,14 +55,36 @@ async function startCheckout(env: Env, req: Request, tenantId: string, customer:
   return session.url;
 }
 
+/** Turns a Stripe failure into a message the person can act on. Stripe's own messages already mask keys; we mask again. */
+export function stripeFailure(e: unknown): HttpError {
+  if (e instanceof HttpError) return e;
+  const err = e as StripeError;
+  const raw = String(err?.message ?? e).replace(/\b(sk|rk|pk)_(test|live)_[A-Za-z0-9*]+/g, "$1_$2_…").slice(0, 300);
+  console.error("stripe", err?.status ?? "", err?.code ?? "", raw);
+  if (err instanceof StripeError && err.status === 0) return new HttpError(502, "billing_unavailable", "We couldn't reach Stripe. Try again in a minute.");
+  if (err instanceof StripeError && (err.status === 401 || err.status === 403)) {
+    return new HttpError(502, "billing_misconfigured", `Stripe rejected this site's API key (${err.status}): ${raw}`);
+  }
+  if (err instanceof StripeError) return new HttpError(502, "billing_error", `Stripe couldn't start checkout (${err.status}${err.code ? `, ${err.code}` : ""}): ${raw}`);
+  return new HttpError(502, "billing_error", `Checkout couldn't start: ${raw}`);
+}
+
 async function stripeCall<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (e) {
-    if (e instanceof HttpError) throw e;
-    console.error("stripe", e);
-    throw new HttpError(502, "billing_unavailable", "We couldn't reach the payment provider. Try again in a minute.");
+    throw stripeFailure(e);
   }
+}
+
+/** The workspace's Stripe customer, created on first use (also covers a signup whose first attempt failed before it had one). */
+async function ensureCustomer(env: Env, tenantId: string, email: string, name: string): Promise<string> {
+  const row = await env.DB.prepare("SELECT customer_ref FROM billing_accounts WHERE tenant_id = ?1").bind(tenantId).first<{ customer_ref: string | null }>();
+  if (row?.customer_ref) return row.customer_ref;
+  const { key } = requireBilling(env);
+  const customer = await new Stripe(key).createCustomer({ email, name, tenantId });
+  await env.DB.prepare("UPDATE billing_accounts SET customer_ref = ?2 WHERE tenant_id = ?1").bind(tenantId, customer.id).run();
+  return customer.id;
 }
 
 // ------------------------------------------------------------------ signup (no workspace needed)
@@ -141,9 +163,9 @@ signupApi.post("/", async (c) => {
   )
     .bind(user.id)
     .first<{ id: string; customer_ref: string | null }>();
-  if (unfinished?.customer_ref) {
+  if (unfinished) {
     await c.env.DB.prepare("UPDATE tenants SET name = ?2 WHERE id = ?1").bind(unfinished.id, name).run();
-    const url = await stripeCall(() => startCheckout(c.env, c.req.raw, unfinished.id, unfinished.customer_ref as string));
+    const url = await stripeCall(async () => startCheckout(c.env, c.req.raw, unfinished.id, await ensureCustomer(c.env, unfinished.id, email, name)));
     return c.json({ status: "checkout", tenant_id: unfinished.id, checkout_url: url, resumed: true });
   }
 
@@ -165,12 +187,7 @@ signupApi.post("/", async (c) => {
     ),
   ]);
 
-  const { key } = requireBilling(c.env);
-  const url = await stripeCall(async () => {
-    const customer = await new Stripe(key).createCustomer({ email, name, tenantId });
-    await c.env.DB.prepare("UPDATE billing_accounts SET customer_ref = ?2 WHERE tenant_id = ?1").bind(tenantId, customer.id).run();
-    return startCheckout(c.env, c.req.raw, tenantId, customer.id);
-  });
+  const url = await stripeCall(async () => startCheckout(c.env, c.req.raw, tenantId, await ensureCustomer(c.env, tenantId, email, name)));
   return c.json({ status: "checkout", tenant_id: tenantId, slug, website: domain || null, checkout_url: url }, 201);
 });
 
