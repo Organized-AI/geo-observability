@@ -91,11 +91,17 @@
   },
 
   "env": {
+    // Staging: its own Worker and its own copy of every resource (infra/environments.json, scripts/infra.mjs).
+    // routes and workers_dev are inherited from the top level, so staging sets routes to [] explicitly: otherwise a
+    // staging deploy would take app.organizedai.vip/geo-observability from production. Staging answers on workers.dev.
     "staging": {
       "name": "geo-observability-staging",
+      "routes": [],
+      "workers_dev": true,
       "vars": {
         "ENVIRONMENT": "staging",
         "APP_NAME": "GEO Observability (staging)",
+        "APP_URL": "",
         "AI_GATEWAY_ID": "geo-observability-staging",
         "DEMO_MODE": "true",
         "DEMO_TENANT_SLUG": "demo",
@@ -118,7 +124,7 @@
       "queues": {
         "producers": [{ "binding": "RUNS", "queue": "geo-observability-runs-staging" }],
         "consumers": [
-          { "queue": "geo-observability-runs-staging", "max_batch_size": 25, "max_batch_timeout": 10, "max_retries": 3 }
+          { "queue": "geo-observability-runs-staging", "max_batch_size": 25, "max_batch_timeout": 10, "max_retries": 3, "dead_letter_queue": "geo-observability-runs-staging-dlq" }
         ]
       },
       "workflows": [

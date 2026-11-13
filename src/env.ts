@@ -29,6 +29,8 @@ export interface Env {
   BILLING_GRACE_DAYS?: string;
   STRIPE_AUTOMATIC_TAX?: string; // "true" turns on Stripe Tax in Checkout; off by default
   STRIPE_LIVE_MODE?: string; // must be "true" before a live key is accepted
+  APP_VERSION?: string; // set by scripts/deploy.mjs from package.json (the release version)
+  GIT_COMMIT?: string; // set by scripts/deploy.mjs: the commit this deploy was built from
   APP_URL?: string; // public address (origin + optional base path) for links, Stripe returns and sign-in emails
   EMAIL_FROM?: string; // sender address on a domain onboarded to Cloudflare Email Service (or verified at Resend)
   EMAIL_FROM_NAME?: string;

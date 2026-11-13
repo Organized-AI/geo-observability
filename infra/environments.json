@@ -1,0 +1,24 @@
+{
+  "$comment": "What each environment needs in Cloudflare beyond what wrangler.jsonc names. scripts/infra.mjs reads wrangler.jsonc (D1, R2, queues, the AI Gateway id in vars) plus this file (KV titles, required secrets) to plan and create resources. See infra/README.md.",
+  "environments": {
+    "production": {
+      "wrangler_env": "",
+      "kv_titles": { "CONFIG": "geo-observability-config" },
+      "public_url": "https://app.organizedai.vip/geo-observability",
+      "deploy_from": "tag v*.*.* on main (release workflow)"
+    },
+    "staging": {
+      "wrangler_env": "staging",
+      "kv_titles": { "CONFIG": "geo-observability-config-staging" },
+      "public_url": "",
+      "deploy_from": "every push to main (deploy-staging workflow)"
+    }
+  },
+  "secrets": {
+    "required": ["SHARE_LINK_SECRET", "EMAIL_FROM"],
+    "billing": ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_BILLING_CONFIG"],
+    "ai_gateway": ["CLOUDFLARE_ACCOUNT_ID", "CF_AIG_TOKEN"],
+    "engines": ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "PERPLEXITY_API_KEY"],
+    "optional": ["AGENCY_EMAILS", "EMAIL_FROM_NAME", "RESEND_API_KEY", "ACCESS_TEAM_DOMAIN", "ACCESS_AUD", "OTEL_EXPORTER_URL", "OTEL_EXPORTER_HEADERS", "AIG_UNIFIED_BILLING"]
+  }
+}

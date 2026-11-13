@@ -34,6 +34,12 @@ AI search visibility (AEO/GEO) tracking with an observability layer, for client 
 - Billing is Stripe in test mode (see SPECIFICATIONS/billing.md). Don't switch on live mode, Stripe Tax or change prices without the owner's go-ahead, and never create Stripe objects from an agent session: `scripts/stripe-setup.mjs` is run by the owner.
 - Never commit secrets. Commits are authored by Jordan Hill; no AI co-author trailers.
 
+## Delivery (GitOps, see DOCUMENTATION/gitops.md)
+- Staging deploys from `main`; production only from a `vX.Y.Z` tag through the release workflow. Don't deploy production from an agent session.
+- Add user-visible changes under `## [Unreleased]` in CHANGELOG.md. Don't bump the version or tag unless asked; `npm run release:prepare` does both files.
+- New bindings go into production and staging in `wrangler.jsonc` with different resource names; `npm run infra:check` must pass. Never give staging production's routes or resources.
+- Workflows live in `.github/workflows/` (or are parked in `CONFIG/github-workflows/` when the pushing app lacks the workflows permission). Pin every action to a commit SHA.
+
 ## Verification requirements
 Before completing any task:
 1. Say how you'll verify it.

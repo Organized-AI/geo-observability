@@ -1,0 +1,13 @@
+# gitleaks (security workflow) uses its default rules plus this allowlist: the exact fake Stripe values the tests use.
+# Never widen this to a path or a loose pattern; a real key in a test is still a leak.
+# The second value is written with [E] so secret scanners don't flag this file itself.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake Stripe values used only by tests"
+regexTarget = "secret"
+regexes = [
+  '''^whsec_test_geo_observability_0123456789$''',
+  '''^sk_test_abcd[E]FGH1234$''',
+]

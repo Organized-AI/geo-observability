@@ -2,16 +2,13 @@
 
 ## 1. Cloudflare resources (once per environment)
 
-```bash
-export CLOUDFLARE_API_TOKEN=...   # Account: Workers Scripts, D1, R2, KV, Queues, Workflows, AI Gateway, Analytics Engine, Workers AI (Edit)
-export CLOUDFLARE_ACCOUNT_ID=...
+Resources are declared in `wrangler.jsonc` and `infra/environments.json` ([infra/README.md](../infra/README.md)).
 
-npx wrangler d1 create geo-observability                 # paste database_id into wrangler.jsonc
-npx wrangler kv namespace create CONFIG                  # paste id into wrangler.jsonc
-npx wrangler r2 bucket create geo-observability-answers
-npx wrangler queues create geo-observability-runs
-npx wrangler queues create geo-observability-runs-dlq
-# Staging: same with the -staging names, ids go under env.staging in wrangler.jsonc
+```bash
+read -rs CLOUDFLARE_API_TOKEN && export CLOUDFLARE_API_TOKEN   # permissions: gitops.md, step 2
+export CLOUDFLARE_ACCOUNT_ID=...
+npm run infra:plan  -- --env staging     # or production
+npm run infra:apply -- --env staging     # creates D1, KV, R2, queues, AI Gateway; writes new ids into wrangler.jsonc
 ```
 
 Create an AI Gateway named `geo-observability` (dashboard → AI → AI Gateway), turn on authentication, logging and per-gateway spend limits. Copy its token for `CF_AIG_TOKEN`.
@@ -39,7 +36,7 @@ Model ids are plain vars in wrangler.jsonc (`OPENAI_MODEL`, `ANTHROPIC_MODEL`, `
 ```bash
 npm ci
 npm run check
-npm run deploy:production        # docs build + D1 migrations + wrangler deploy
+npm run deploy:production        # checks, docs build, D1 migrations, wrangler deploy, /healthz check
 npm run seed:demo                # optional: read-only demo workspace at /app/ while DEMO_MODE=true
 ```
 
@@ -74,9 +71,9 @@ See [stripe-billing.md](stripe-billing.md): one script creates the sandbox produ
 
 ## 5. GitOps
 
-First enable the workflows (they are parked in `CONFIG/github-workflows/`): `git mv CONFIG/github-workflows .github/workflows`, commit and push.
-
-Push to `main` → CI gate → deploy workflow ships **staging**. Publish a GitHub release → ships **production** (add required reviewers on the `production` environment). Repo secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`; optional repo variable `APP_URL_STAGING` for the smoke test. The deploy job skips cleanly until those secrets exist.
+Staging deploys from `main`, production from a `vX.Y.Z` tag, both through GitHub Actions: [gitops.md](gitops.md) has the
+pipeline, the one-time setup (token, secrets, environments, rulesets) and how to release and roll back.
+`npm run deploy:staging` and `npm run deploy:production` run the same script from a laptop.
 
 ## 6. Client edge tap (per client zone)
 

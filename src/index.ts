@@ -32,7 +32,9 @@ app.use("*", async (c, next) => {
   if (c.req.path.startsWith("/api/")) c.res.headers.set("cache-control", "no-store");
 });
 
-app.get("/healthz", (c) => c.json({ ok: true, env: c.env.ENVIRONMENT }));
+app.get("/healthz", (c) =>
+  c.json({ ok: true, env: c.env.ENVIRONMENT, version: c.env.APP_VERSION ?? "dev", commit: c.env.GIT_COMMIT ?? "dev" }),
+);
 
 app.route("/api/shared", sharedApi);
 app.route("/api/tenants", tenantsApi);

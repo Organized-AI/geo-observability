@@ -32,6 +32,6 @@ Engines without a provider key run on a clearly labelled stub, so everything wor
 | `migrations/` | D1 schema |
 | `ARCHITECTURE/`, `PLANNING/`, `SPECIFICATIONS/`, `DOCUMENTATION/`, `AGENT-HANDOFF/`, `CONFIG/` | Organized Codebase docs |
 
-Deploying: [DOCUMENTATION/deploy.md](DOCUMENTATION/deploy.md). Architecture: [ARCHITECTURE/overview.md](ARCHITECTURE/overview.md). API: [ARCHITECTURE/API.md](ARCHITECTURE/API.md). Phases: [PLANNING/phases.md](PLANNING/phases.md).
+Deploying: [DOCUMENTATION/deploy.md](DOCUMENTATION/deploy.md). CI/CD, releases and rollback: [DOCUMENTATION/gitops.md](DOCUMENTATION/gitops.md). Infrastructure: [infra/README.md](infra/README.md). Contributing and versioning: [CONTRIBUTING.md](CONTRIBUTING.md). Architecture: [ARCHITECTURE/overview.md](ARCHITECTURE/overview.md). API: [ARCHITECTURE/API.md](ARCHITECTURE/API.md). Phases: [PLANNING/phases.md](PLANNING/phases.md).
 
 Billing runs on Stripe (test mode first): card on file at signup, usage metered per client and pushed hourly to Stripe meters, webhooks gate runs on payment status ([SPECIFICATIONS/billing.md](SPECIFICATIONS/billing.md), setup in [DOCUMENTATION/stripe-billing.md](DOCUMENTATION/stripe-billing.md)).

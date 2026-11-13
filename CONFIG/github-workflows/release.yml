@@ -1,0 +1,108 @@
+# Release on tag vX.Y.Z (the podcast-agent flow, on Cloudflare): check the tag is on main and the version agrees with
+# package.json and CHANGELOG.md, run every check, deploy production (the "production" environment: add yourself as a
+# required reviewer and this job waits for your approval), then publish the GitHub Release from CHANGELOG.md.
+# The Worker version is tagged vX.Y.Z, so `npx wrangler deployments list` maps every deploy to a release.
+name: release
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions: {}
+
+concurrency:
+  group: release-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Tag, version, changelog and checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: read   # look up the staging deploy of this commit
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: The tag is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false   # no cache in jobs that deploy (cache poisoning)
+      - run: npm ci
+      - name: package.json, package-lock.json, tag and CHANGELOG agree
+        env:
+          TAG: ${{ github.ref_name }}
+        run: node scripts/version.mjs check --tag "$TAG"
+      - name: Every check (types, lint, tests, infra, docs, bundles)
+        run: npm run check
+      - name: This commit ran on staging first
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUIRE_STAGING: ${{ vars.REQUIRE_STAGING }}
+        run: |
+          id=$(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=staging&sha=$GITHUB_SHA&per_page=1" --jq '.[0].id // empty')
+          state=""
+          [ -n "$id" ] && state=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses?per_page=1" --jq '.[0].state // empty')
+          if [ "$state" = "success" ]; then
+            echo "Staging ran ${GITHUB_SHA::7} successfully." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$REQUIRE_STAGING" = "true" ]; then
+            echo "::error::No successful staging deploy of ${GITHUB_SHA::7} (state: ${state:-none}). Let deploy-staging finish, or unset REQUIRE_STAGING."
+            exit 1
+          else
+            echo "::warning::No successful staging deploy of ${GITHUB_SHA::7} (state: ${state:-none}). Set REQUIRE_STAGING=true to make this block releases."
+          fi
+
+  deploy:
+    name: Deploy production
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment:
+      name: production
+      url: https://app.organizedai.vip/geo-observability
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false   # no cache in jobs that deploy (cache poisoning)
+      - run: npm ci
+      - name: Cloudflare credentials are set
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID as repository or production environment secrets."
+            exit 1
+          fi
+      - name: Migrate production D1, deploy, check /healthz reports this release
+        run: npm run deploy:production
+
+  github-release:
+    name: GitHub Release from CHANGELOG.md
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          node scripts/version.mjs notes "$TAG" > notes.md
+          printf '\nDeployed to production as Worker version tag `%s` (commit %s). Roll back with the rollback workflow.\n' "$TAG" "${GITHUB_SHA::7}" >> notes.md
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes-file notes.md --verify-tag --latest

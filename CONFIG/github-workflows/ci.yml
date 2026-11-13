@@ -1,5 +1,5 @@
-# PR Gate: every pull request and every push to main runs these jobs. Branch protection should require
-# only the final "PR Gate" job, which fails if any job it depends on did not succeed.
+# The PR Gate: every pull request and every push to main runs these jobs. The main ruleset requires only the final
+# "PR Gate" job, which fails if any job it depends on did not succeed. Same shape as Organized-AI/podcast-agent.
 name: ci
 on:
   pull_request:
@@ -16,11 +16,12 @@ concurrency:
 
 jobs:
   quality:
-    name: Types, lint, tests, docs, bundle
+    name: Types, lint, tests, version, infra, docs, bundles
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          fetch-depth: 0   # the migration check compares with the pull request's base
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
@@ -33,31 +34,56 @@ jobs:
         run: npm run lint
       - name: Tests (Workers runtime, D1 migrations applied fresh)
         run: npm test
-      - name: Docs build (fails on broken internal links)
-        run: npm run build:docs
-      - name: Docs are committed in sync with docs-src
-        run: git diff --exit-code -- public/docs
-      - name: Worker bundles (dry run)
-        run: npx wrangler deploy --dry-run --outdir .tmp/dist
+      - name: Script tests (deploy, infra and version tooling)
+        run: npm run test:scripts
+      - name: One version (package.json, package-lock.json, CHANGELOG.md)
+        run: npm run version:check
+      - name: Infra (staging mirrors production and shares none of its resources)
+        run: npm run infra:check
+      - name: Migrations are append-only
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-status --diff-filter=MDR "$BASE_SHA"...HEAD -- migrations)
+          if [ -n "$changed" ]; then
+            echo "::error::Applied migrations were changed, renamed or deleted. Add a new numbered file instead:"
+            echo "$changed"
+            exit 1
+          fi
+      - name: Docs build (fails on broken internal links) and is committed in sync with docs-src
+        run: |
+          npm run build:docs
+          git diff --exit-code -- public/docs
+      - name: Bundles (production, staging and the edge tap, dry run)
+        run: |
+          npx wrangler deploy --dry-run --outdir .tmp/dist
+          npx wrangler deploy --dry-run --env staging --outdir .tmp/dist-staging
+          npx wrangler deploy --dry-run --config edge/wrangler.jsonc --outdir .tmp/dist-edge
       - name: Demo seed generates
-        run: node scripts/seed-demo.mjs > /dev/null
+        run: node scripts/seed-demo.mjs .tmp/seed-demo.sql
 
-  dependency-review:
-    name: Dependency review
-    if: github.event_name == 'pull_request'
+  audit:
+    name: Dependencies (npm audit, runtime, high and critical)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294  # v5.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 22
+      - run: npm audit --omit=dev --audit-level=high
 
   gate:
     name: PR Gate
     if: always()
-    needs: [quality, dependency-review]
+    needs: [quality, audit]
     runs-on: ubuntu-latest
     steps:
-      - name: Every required job succeeded (or was skipped)
+      - name: Every required job succeeded
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           echo "job results: $RESULTS"
-          for r in $RESULTS; do [ "$r" = "success" ] || [ "$r" = "skipped" ] || exit 1; done
+          for r in $RESULTS; do [ "$r" = "success" ] || exit 1; done

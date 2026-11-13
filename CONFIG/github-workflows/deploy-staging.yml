@@ -1,0 +1,62 @@
+# Staging follows main: every push to main (a merged pull request) migrates staging D1 and deploys the staging Worker,
+# then checks /healthz reports this commit. Production only changes from a release tag (release.yml).
+# Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (repository or "staging" environment secrets). Until those exist,
+# or while wrangler.jsonc still has staging placeholder ids, the job skips with a note instead of failing.
+name: deploy-staging
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "*.md"
+      - "PLANNING/**"
+      - "SPECIFICATIONS/**"
+      - "ARCHITECTURE/**"
+      - "AGENT-HANDOFF/**"
+      - "DOCUMENTATION/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy staging
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SMOKE_URL: ${{ vars.STAGING_URL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false   # no cache in jobs that deploy (cache poisoning)
+      - run: npm ci
+      - name: Ready to deploy?
+        id: ready
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Staging skipped: CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are not set (DOCUMENTATION/gitops.md)." >> "$GITHUB_STEP_SUMMARY"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          elif grep -q REPLACE_WITH_STAGING wrangler.jsonc; then
+            echo "Staging skipped: its resources are not created yet. Run npm run infra:apply -- --env staging and commit wrangler.jsonc." >> "$GITHUB_STEP_SUMMARY"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verify before shipping
+        if: steps.ready.outputs.ok == 'true'
+        run: npm run typecheck && npm test && npm run test:scripts
+      - name: Migrate and deploy staging, then check /healthz
+        if: steps.ready.outputs.ok == 'true'
+        run: npm run deploy:staging
