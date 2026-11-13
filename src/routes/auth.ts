@@ -153,18 +153,21 @@ authApp.get("/checkout-return", async (c) => {
     .first();
   if (claim && acct.signup_pending === 1) {
     const { cookie } = await createSession(c.env, acct.user_id, false);
-    // Best effort: a link that confirms the email and works for signing in next time.
+    // A link that confirms the email and works for signing in next time. If it can't go out, the app says why.
+    let location = dest;
     try {
       await sendSignInLink(c.env, c.req.raw, acct.email, "Your workspace is ready. Use this link to confirm your email and sign in on any device.");
     } catch (e) {
-      console.error("welcome email", e);
+      console.error("welcome email", String((e as Error)?.message ?? e));
+      location = `/app/?billing=success&email=failed&why=${encodeURIComponent(String((e as Error)?.message ?? "").slice(0, 240))}#/setup`;
     }
-    return new Response(null, { status: 303, headers: { location: dest, "set-cookie": cookie, "cache-control": "no-store" } });
+    return new Response(null, { status: 303, headers: { location, "set-cookie": cookie, "cache-control": "no-store" } });
   }
   try {
     await sendSignInLink(c.env, c.req.raw, acct.email, "Your payment went through. Use this link to open your workspace.");
   } catch (e) {
-    console.error("checkout sign-in email", e);
+    console.error("checkout sign-in email", String((e as Error)?.message ?? e));
+    return c.redirect(`/login/?sent=failed&why=${encodeURIComponent(String((e as Error)?.message ?? "").slice(0, 240))}`, 303);
   }
   return c.redirect("/login/?sent=checkout", 303);
 });

@@ -11,7 +11,8 @@ import { enqueuePass } from "../workflows/scheduler";
 import { progressStub } from "../durable/progress";
 import { contentBrief, draftProfile, generatePrompts, suggestCompetitors, suggestTopics, type Profile } from "../onboarding/assist";
 import { billingBanner, billingLocks, billingStatus } from "../billing/hooks";
-import { assertSameOrigin } from "../lib/session";
+import { assertSameOrigin, rateLimit } from "../lib/session";
+import { emailFailureReason, mailerKind, parseFrom, sendMail } from "../lib/mailer";
 import { STARTER_MODEL_LIMIT } from "./billing";
 import { TenantDB, type BrandRow, type ProjectRow, type PromptRow } from "../lib/db";
 
@@ -116,6 +117,31 @@ api.get("/me", async (c) => {
       can_manage: s.role === "owner" && !s.demo && b.provider === "stripe",
     },
   });
+});
+
+// Sign-in email health: which provider is in use and how the latest sends to you went (agency staff see all).
+api.get("/email/status", async (c) => {
+  const s = c.get("session");
+  if (!s.isAgency) requireOwner(s);
+  const from = parseFrom(c.env);
+  const rows = await c.env.DB.prepare(
+    `SELECT to_email, provider, status, code, detail, message_id, created_at FROM email_log
+     WHERE ?1 = 1 OR to_email = ?2 ORDER BY created_at DESC LIMIT 10`,
+  )
+    .bind(s.isAgency ? 1 : 0, s.email)
+    .all()
+    .catch(() => ({ results: [] }));
+  const recent = (rows.results ?? []).map((r: any) => ({ ...r, reason: r.status === "failed" ? emailFailureReason(String(r.code ?? ""), from.email.split("@")[1] ?? "") : null }));
+  return c.json({ provider: mailerKind(c.env), from: from.email || null, from_domain: from.email.split("@")[1] ?? null, recent });
+});
+
+// Sends a test sign-in email to the signed-in owner, so a setup problem shows up as a plain reason.
+api.post("/email/test", async (c) => {
+  const s = c.get("session");
+  if (!s.isAgency) requireOwner(s);
+  await rateLimit(c.env, "email_test", s.email, 5, 60);
+  await sendMail(c.env, { to: s.email, subject: `Test email from ${c.env.APP_NAME || "GEO Observability"}`, text: "Email sending works. Sign-in links will arrive the same way." });
+  return c.json({ sent: true, to: s.email, provider: mailerKind(c.env) });
 });
 
 api.get("/engines", (c) => c.json(engineList(c.env)));

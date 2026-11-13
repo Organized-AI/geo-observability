@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import type { Env } from "../src/env";
 import { app } from "../src/index";
 import { createSession, normalizeEmail, readCookie, SESSION_COOKIE, sha256 } from "../src/lib/session";
-import { mailerKind } from "../src/lib/mailer";
+import { mailerKind, parseFrom, sendMail } from "../src/lib/mailer";
 
 /** The test pool signs every request in as an agency email; these tests run as an anonymous visitor instead. */
 const anon = { ...(rawEnv as unknown as Env), DEV_AUTH_EMAIL: undefined, AGENCY_EMAILS: "staff@agency.test" } as Env;
@@ -167,5 +167,46 @@ describe("sessions from a Checkout return", () => {
     const demoEnv = { ...anon, DEMO_MODE: "true" } as Env;
     const res = await app.fetch(new Request(`${ORIGIN}/api/me`), demoEnv, createExecutionContext());
     expect([200, 503]).toContain(res.status); // 503 only when demo data isn't seeded in this test database
+  });
+});
+
+describe("email failures are visible", () => {
+  const cfEnv = (send: (m: unknown) => Promise<unknown>, from = "Organized AI <signin@organizedai.vip>") =>
+    ({ ...anon, ENVIRONMENT: "production", EMAIL_MODE: undefined, EMAIL_FROM: from, EMAIL: { send } }) as unknown as Env;
+
+  it("splits a named EMAIL_FROM and sends from the bare address", async () => {
+    let sent: any = null;
+    const e = cfEnv(async (m) => {
+      sent = m;
+      return { messageId: "msg_1" };
+    });
+    expect(parseFrom(e)).toEqual({ email: "signin@organizedai.vip", name: "Organized AI" });
+    await sendMail(e, { to: "a@b.test", subject: "s", text: "t" });
+    expect(sent.from).toEqual({ email: "signin@organizedai.vip", name: "Organized AI" });
+    const row = await anon.DB.prepare("SELECT status, message_id FROM email_log WHERE to_email = 'a@b.test'").first<{ status: string; message_id: string }>();
+    expect(row).toEqual({ status: "sent", message_id: "msg_1" });
+  });
+
+  it("explains an unonboarded domain and logs the failure", async () => {
+    const e = cfEnv(async () => {
+      throw Object.assign(new Error("domain not available"), { code: "E_SENDER_DOMAIN_NOT_AVAILABLE" });
+    });
+    await expect(sendMail(e, { to: "c@d.test", subject: "s", text: "t" })).rejects.toThrow(/organizedai\.vip isn't onboarded to Cloudflare Email Service/);
+    const row = await anon.DB.prepare("SELECT status, code FROM email_log WHERE to_email = 'c@d.test'").first<{ status: string; code: string }>();
+    expect(row).toEqual({ status: "failed", code: "E_SENDER_DOMAIN_NOT_AVAILABLE" });
+  });
+
+  it("the sign-in form shows the reason instead of saying a link is on its way", async () => {
+    await anon.DB.prepare("INSERT INTO users (id, email) VALUES ('usr_mailfail', 'mailfail@client.test')").run();
+    const e = cfEnv(async () => {
+      throw Object.assign(new Error("not verified"), { code: "E_SENDER_NOT_VERIFIED" });
+    });
+    const res = await app.fetch(
+      new Request(`${ORIGIN}/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "mailfail@client.test" }) }),
+      e,
+      createExecutionContext(),
+    );
+    expect(res.status).toBe(502);
+    expect(((await res.json()) as { message: string }).message).toContain("not verified yet");
   });
 });

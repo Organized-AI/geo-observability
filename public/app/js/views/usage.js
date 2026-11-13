@@ -67,6 +67,26 @@ function billingPanel(ctx, box) {
   }, 3);
 }
 
+const PROVIDER = { cloudflare: "Cloudflare Email Service", resend: "Resend", outbox: "Development outbox", none: "Not set up" };
+
+function emailPanel(ctx, box) {
+  return load(box, () => api("email/status", { quiet: true }), (e) => {
+    box.append(h("div", { class: "kpis kpis-compact" },
+      h("div", { class: "kpi" }, h("p", { class: "kpi-label" }, "Sends with"), h("p", null, badge(PROVIDER[e.provider] || e.provider, e.provider === "none" ? "neg" : "ok"))),
+      h("div", { class: "kpi" }, h("p", { class: "kpi-label" }, "From"), h("p", null, e.from || "EMAIL_FROM not set"))));
+    const last = (e.recent || [])[0];
+    if (last && last.status === "failed") box.append(h("div", { class: "banner banner-warn", role: "status" }, icon("alert"), h("span", null, `Last send failed: ${last.reason} (${last.code || "unknown"})`)));
+    else if (last) box.append(h("p", { class: "muted small" }, `Last send went out ${fmt.dateLong(last.created_at)}.`));
+    const btn = h("button", { type: "button", class: "btn", onclick: async () => {
+      btn.disabled = true;
+      try { const r = await api("email/test", { method: "POST" }); toast(`Test email sent to ${r.to}. Check your inbox and spam folder.`, "ok"); }
+      catch { /* the error toast carries the reason */ }
+      finally { btn.disabled = false; box.textContent = ""; emailPanel(ctx, box); }
+    } }, "Send me a test email");
+    box.append(h("div", { class: "row" }, btn, h("span", { class: "muted small" }, "Sign-in links go out the same way.")));
+  }, 2);
+}
+
 function keysPanel(ctx, box) {
   const refresh = () => load(box, () => api("keys"), (rows) => {
     rows = Array.isArray(rows) ? rows : [];
@@ -105,10 +125,13 @@ export default async function usage(ctx) {
   const u = card("This month", {});
   const bl = card("Billing", {});
   const k = card("API keys", { class: "card-flush" });
-  ctx.el.append(h("div", { class: "stack" }, u, bl, k,
+  const owner = ctx.me && !ctx.me.demo && ctx.me.tenant && (ctx.me.tenant.role === "owner" || (ctx.me.user && ctx.me.user.is_agency));
+  const em = owner ? card("Sign-in email", {}) : null;
+  ctx.el.append(h("div", { class: "stack" }, u, bl, em, k,
     card("Using the API", {}, h("p", null, "Read keys work with the REST API under ", h("code", null, "/api/v1"), " and the MCP server at ", h("code", null, "/mcp"), ". Send the key in the ", h("code", null, "X-API-Key"), " header for REST, or as a bearer token for MCP."),
       h("p", { class: "muted small" }, "Full reference: ", h("a", { href: "/docs/" }, "documentation"), "."))));
   usagePanel(ctx, u.querySelector(".card-body"));
   billingPanel(ctx, bl.querySelector(".card-body"));
+  if (em) emailPanel(ctx, em.querySelector(".card-body"));
   keysPanel(ctx, k.querySelector(".card-body"));
 }

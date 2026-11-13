@@ -161,6 +161,12 @@ async function confirmCheckout() {
   const params = new URLSearchParams(location.search);
   if (params.get("billing") !== "success") return;
   params.delete("billing");
+  if (params.get("email") === "failed") {
+    const why = params.get("why") || "";
+    params.delete("email"); params.delete("why");
+    const nb = $("banners");
+    if (nb) nb.prepend(h("div", { class: "banner banner-warn", role: "alert" }, icon("alert"), h("span", null, `You're signed in on this device, but your confirmation email didn't send. ${why}`.trim())));
+  }
   const clean = location.pathname + (params.toString() ? `?${params}` : "") + location.hash;
   history.replaceState(null, "", clean);
   if (!state.me || !state.me.billing || state.me.billing.status !== "incomplete") { toast("Card saved. Your subscription is active.", "ok"); return; }

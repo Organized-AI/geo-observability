@@ -12,6 +12,7 @@ function say(text, tone = "info") {
 
 const q = new URLSearchParams(location.search);
 if (q.get("sent") === "checkout") say("Your payment went through. We've emailed you a link to open your workspace.", "info");
+if (q.get("sent") === "failed") say(`Your payment went through, but the sign-in email didn't send. ${q.get("why") || ""}`.trim(), "neg");
 
 form.addEventListener("submit", async (ev) => {
   ev.preventDefault();

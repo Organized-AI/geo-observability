@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.3
+- Sign-in email failures are visible: every send is logged in `email_log` (migration 0005) with the provider's error code, `/login/`, signup and the post-Checkout page say why a send failed, and owners get a Sign-in email card on Usage & API with a test button (`GET /api/email/status`, `POST /api/email/test`).
+- EMAIL_FROM can be written as `Name <address>`.
+
 ## 1.2.2
 - The workspace turns active as soon as Stripe confirms the Checkout payment on the return page, so setup never stalls waiting for the webhook.
 - Setup's first step starts from the workspace name and website given at signup.

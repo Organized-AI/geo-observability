@@ -6,7 +6,7 @@ Signup at `/signup/` is public. People sign in at `/login/` with a link we email
 
 The Worker has a `send_email` binding named `EMAIL` (in `wrangler.jsonc`). Cloudflare Email Service sends only from a domain onboarded to it, and a `workers.dev` address can't be a sender.
 
-1. Cloudflare dashboard → **Email** → **Email Service** (public beta) → onboard a domain you own, e.g. `organizedai.vip`, and add the DNS records it asks for.
+1. Cloudflare dashboard → **Compute** → **Email Service** → **Email Sending** → **Onboard Domain**, and pick a domain you own, e.g. `organizedai.vip`. The domain must use Cloudflare DNS. Cloudflare adds the records itself (MX, SPF and DKIM on `cf-bounce`, DMARC on `_dmarc`); wait until the domain shows as verified.
 2. Set the sender:
    ```bash
    npx wrangler secret put EMAIL_FROM          # e.g. sign-in@organizedai.vip
@@ -24,6 +24,25 @@ npx wrangler secret put EMAIL_MODE          # type: resend
 ```
 
 Without `EMAIL_FROM` and a working sender, `/auth/login` answers "Email sign-in isn't set up on this site yet", and signup still works (people come back signed in from Stripe) but can't sign in again on another device.
+
+## When emails don't arrive
+
+Every send is logged in the D1 `email_log` table with the provider's error code, and failures now show where they happen: the `/login/` form, the signup page, and a banner after Checkout. Owners also get a **Sign-in email** card on Usage & API with the last result and a **Send me a test email** button.
+
+```bash
+npx wrangler d1 execute geo-observability --remote --command "SELECT created_at, provider, status, code, detail FROM email_log ORDER BY created_at DESC LIMIT 5"
+npx wrangler tail geo-observability     # shows "email send failed <code>" live
+```
+
+| Code | Fix |
+|---|---|
+| `E_SENDER_DOMAIN_NOT_AVAILABLE` | Onboard the EMAIL_FROM domain in Email Sending. |
+| `E_SENDER_NOT_VERIFIED` | The domain's DNS records aren't verified yet. |
+| `E_VALIDATION_ERROR` | EMAIL_FROM isn't a valid address (`Name <addr>` is fine too). |
+| `E_RECIPIENT_SUPPRESSED` | The address bounced or complained before; remove it from the suppression list. |
+| `resend_401` / `resend_403` / `resend_422` | Resend key or domain problem. |
+
+If the log says `sent` but nothing arrives, check spam: a newly onboarded domain has no sending reputation yet.
 
 ## Local development
 
