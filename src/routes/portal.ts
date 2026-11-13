@@ -87,6 +87,11 @@ tenantsApi.post("/", async (c) => {
 api.get("/me", async (c) => {
   const s = c.get("session");
   const b = await billingStatus(c.env, s.tenant.id);
+  // The website given at signup, so setup can start from it instead of asking again.
+  const signup = s.demo
+    ? null
+    : await s.tdb.first<{ detail: string | null }>("SELECT detail FROM audit_log WHERE tenant_id = ?1 AND action = 'workspace.signup' ORDER BY created_at LIMIT 1");
+  const signupWebsite = (parseJson(signup?.detail, {}) as { website?: unknown }).website;
   return c.json({
     user: { email: s.email, name: s.name, is_agency: s.isAgency },
     tenants: s.tenants,
@@ -97,6 +102,7 @@ api.get("/me", async (c) => {
       role: s.role,
       plan: s.tenant.plan,
       limits: { prompts: s.tenant.prompt_limit, projects: s.tenant.project_limit, models: s.tenant.model_limit, countries: s.tenant.country_limit },
+      signup_website: typeof signupWebsite === "string" ? signupWebsite : null,
     },
     demo: s.demo,
     read_only: s.readOnly,

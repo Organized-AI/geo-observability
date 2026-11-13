@@ -122,7 +122,7 @@ authApp.get("/checkout-return", async (c) => {
     .first<{ tenant_id: string; checkout_claimed_at: string | null; user_id: string; email: string; signup_pending: number }>();
   if (!acct) return c.redirect("/login/", 303);
 
-  let session: { status?: string; client_reference_id?: string } = {};
+  let session: { status?: string; client_reference_id?: string; payment_status?: string; subscription?: string | { id?: string } | null } = {};
   try {
     session = await new Stripe(key).request("GET", `/v1/checkout/sessions/${cs}`);
   } catch (e) {
@@ -130,6 +130,17 @@ authApp.get("/checkout-return", async (c) => {
   }
   if (session.status !== "complete" || session.client_reference_id !== acct.tenant_id) {
     return page("Payment not finished", `<h1>Your payment isn't finished</h1><p>Stripe hasn't confirmed the card yet. Go back and try again, or contact us if you were charged.</p><p><a class="btn btn-primary" href="/signup/">Back to sign up</a></p>`, 400);
+  }
+
+  // Stripe has confirmed the payment, so lift a fresh signup out of "incomplete" now rather than waiting for the
+  // webhook (same rule as checkout.session.completed; status_at stays unset so subscription events still apply).
+  if (session.payment_status === "paid" || session.payment_status === "no_payment_required") {
+    const sub = typeof session.subscription === "string" ? session.subscription : (session.subscription?.id ?? null);
+    await c.env.DB.prepare(
+      "UPDATE billing_accounts SET status = 'active', subscription_ref = COALESCE(?2, subscription_ref), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE tenant_id = ?1 AND status = 'incomplete'",
+    )
+      .bind(acct.tenant_id, sub)
+      .run();
   }
 
   const dest = "/app/?billing=success#/setup";

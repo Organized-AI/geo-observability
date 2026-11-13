@@ -107,6 +107,12 @@ function wizard(ctx, host, startProject) {
   function stepBrand() {
     const name = h("input", { class: "input", required: true, maxlength: 80, placeholder: "Acme" });
     const domain = h("input", { class: "input", required: true, maxlength: 120, placeholder: "acme.com", inputmode: "url" });
+    // Start from what they gave at signup, the way Peec asks for the domain only once.
+    const t = ctx.me && ctx.me.tenant ? ctx.me.tenant : null;
+    if (t && !ctx.projects.length) {
+      if (t.signup_website) domain.value = t.signup_website;
+      if (t.name) name.value = t.name;
+    }
     const form = h("form", { class: "form-grid", onsubmit: async (e) => {
       e.preventDefault();
       const d = domain.value.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "").toLowerCase();

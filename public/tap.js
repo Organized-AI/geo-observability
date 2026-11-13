@@ -1,4 +1,4 @@
-/*! GEO Observability tap.js — counts visits that arrive from AI assistants. No cookies, no IDs. */
+/*! GEO Observability tap.js: counts visits that arrive from AI assistants. No cookies, no IDs. */
 (function () {
   try {
     var s = document.currentScript;

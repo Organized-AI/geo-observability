@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.2
+- The workspace turns active as soon as Stripe confirms the Checkout payment on the return page, so setup never stalls waiting for the webhook.
+- Setup's first step starts from the workspace name and website given at signup.
+- End-to-end journey test: signup, Checkout, return, setup, first run, reports, site tracking, metered billing, sign out.
+
 ## 1.2.1
 - Starter includes all four engines (migration 0004 raises existing Starter workspaces). Setup shows plan limits and stops at them; limit errors show their real message.
 - Stripe client works on Workers (fetch called as a plain function); stored Stripe key is cleaned of stray whitespace; signup shows Stripe's real error and reuses a half-made workspace.

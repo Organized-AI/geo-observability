@@ -44,11 +44,17 @@ export class StripeError extends Error {
   }
 }
 
+/** Default transport. Tests swap it for a stand-in with setStripeTransport; production always uses fetch. */
+let transport: Fetcher = (input, init) => fetch(input, init);
+export function setStripeTransport(f: Fetcher | null): void {
+  transport = f ?? ((input, init) => fetch(input, init));
+}
+
 export class Stripe {
   private readonly key: string;
   constructor(
     key: string,
-    private readonly fetcher: Fetcher = (input, init) => fetch(input, init),
+    private readonly fetcher: Fetcher = (input, init) => transport(input, init),
     private readonly base = "https://api.stripe.com",
   ) {
     this.key = cleanKey(key);
@@ -180,7 +186,7 @@ export function hourTimestamp(hour: string): number {
   return Math.floor(Date.parse(`${hour}:00:00Z`) / 1000) + 1800;
 }
 
-export function stripeProvider(env: Env, fetcher: Fetcher = fetch): BillingProvider | null {
+export function stripeProvider(env: Env, fetcher?: Fetcher): BillingProvider | null {
   const mode = keyMode(env.STRIPE_SECRET_KEY);
   if (mode === "invalid" || (mode === "live" && env.STRIPE_LIVE_MODE !== "true")) return null;
   const config = parseBillingConfig(env.STRIPE_BILLING_CONFIG);
@@ -208,7 +214,7 @@ export function stripeProvider(env: Env, fetcher: Fetcher = fetch): BillingProvi
   };
 }
 
-export function stripeFromEnv(env: Env, fetcher: Fetcher = fetch): Stripe {
+export function stripeFromEnv(env: Env, fetcher?: Fetcher): Stripe {
   const mode = keyMode(env.STRIPE_SECRET_KEY);
   if (mode === "invalid" || (mode === "live" && env.STRIPE_LIVE_MODE !== "true")) {
     throw new HttpError(503, "billing_off", "Card billing isn't switched on for this site yet.");
