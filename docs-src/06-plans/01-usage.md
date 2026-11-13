@@ -37,7 +37,7 @@ The spend cap is a ceiling on estimated model spend for the month. Once estimate
 
 ## Plan limits
 
-Your plan sets limits on the number of prompts, projects, engines and countries. You can see them on the Usage page.
+Your plan sets limits on the number of prompts, projects, engines and countries. Every plan includes all four engines (ChatGPT, Claude, Gemini and Perplexity). Setup shows your limits as you pick, and the Usage page lists them.
 
 ## Billing
 

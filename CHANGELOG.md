@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1
+- Starter includes all four engines (migration 0004 raises existing Starter workspaces). Setup shows plan limits and stops at them; limit errors show their real message.
+- Stripe client works on Workers (fetch called as a plain function); stored Stripe key is cleaned of stray whitespace; signup shows Stripe's real error and reuses a half-made workspace.
+
 ## 1.2.0
 - Public signup: email and workspace name, then Stripe Checkout; you come back signed in. No Cloudflare Access needed.
 - Email sign-in at /login/: single-use 15-minute links (hashed), confirm-button page, HttpOnly session cookie, rate limits, sign out.

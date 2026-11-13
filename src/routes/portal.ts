@@ -12,6 +12,7 @@ import { progressStub } from "../durable/progress";
 import { contentBrief, draftProfile, generatePrompts, suggestCompetitors, suggestTopics, type Profile } from "../onboarding/assist";
 import { billingBanner, billingLocks, billingStatus } from "../billing/hooks";
 import { assertSameOrigin } from "../lib/session";
+import { STARTER_MODEL_LIMIT } from "./billing";
 import { TenantDB, type BrandRow, type ProjectRow, type PromptRow } from "../lib/db";
 
 export type AppEnv = { Bindings: Env; Variables: { session: Session } };
@@ -76,8 +77,8 @@ tenantsApi.post("/", async (c) => {
   const exists = await c.env.DB.prepare("SELECT 1 FROM tenants WHERE slug = ?1").bind(slug).first();
   if (exists) throw new HttpError(409, "conflict", "That slug is taken");
   const id = newId("ten");
-  await c.env.DB.prepare("INSERT INTO tenants (id, name, slug, email_domain, plan) VALUES (?1, ?2, ?3, ?4, ?5)")
-    .bind(id, name, slug, b.email_domain ? cleanDomain(b.email_domain) : null, b.plan ?? "starter")
+  await c.env.DB.prepare("INSERT INTO tenants (id, name, slug, email_domain, plan, model_limit) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+    .bind(id, name, slug, b.email_domain ? cleanDomain(b.email_domain) : null, b.plan ?? "starter", STARTER_MODEL_LIMIT)
     .run();
   return c.json({ id, name, slug }, 201);
 });

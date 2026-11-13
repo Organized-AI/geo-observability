@@ -110,13 +110,16 @@ describe("onboarding to first numbers", () => {
 });
 
 describe("plan limits", () => {
-  it("refuses more engines than the plan allows with a message the portal can show", async () => {
-    const r = await call("PUT", `/api/projects/${projectA}/models`, { engines: ["chatgpt", "claude", "gemini", "perplexity"] }, "acme");
+  it("gives Starter all four engines and refuses more than a plan allows with a readable message", async () => {
+    const t = await env.DB.prepare("SELECT model_limit FROM tenants WHERE id = ?1").bind(tenantA).first<{ model_limit: number }>();
+    expect(t?.model_limit).toBe(4);
+    expect((await call("PUT", `/api/projects/${projectA}/models`, { engines: ["chatgpt", "claude", "gemini", "perplexity"] }, "acme")).status).toBe(200);
+    await env.DB.prepare("UPDATE tenants SET model_limit = 2 WHERE id = ?1").bind(tenantA).run();
+    const r = await call("PUT", `/api/projects/${projectA}/models`, { engines: ["chatgpt", "claude", "gemini"] }, "acme");
     expect(r.status).toBe(403);
     expect(r.json.error).toBe("limit");
-    expect(r.json.message).toMatch(/up to 3 engines/);
-    const ok = await call("PUT", `/api/projects/${projectA}/models`, { engines: ["chatgpt", "claude", "gemini"] }, "acme");
-    expect(ok.status).toBe(200);
+    expect(r.json.message).toMatch(/up to 2 engines/);
+    await env.DB.prepare("UPDATE tenants SET model_limit = 4 WHERE id = ?1").bind(tenantA).run();
   });
 });
 

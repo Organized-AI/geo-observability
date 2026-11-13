@@ -20,6 +20,9 @@ import { billingLocks, billingStatus } from "../billing/hooks";
 import { Stripe, StripeError, checkoutParams, verifyStripeSignature } from "../billing/stripe";
 import { handleStripeEvent, type StripeEvent } from "../billing/webhooks";
 
+/** Engines a Starter workspace may track: all four live engines. */
+export const STARTER_MODEL_LIMIT = 4;
+
 type BillingEnv = { Bindings: Env; Variables: { session: Session } };
 
 async function readJson<T>(req: Request): Promise<T> {
@@ -181,7 +184,7 @@ signupApi.post("/", async (c) => {
   }
   const tenantId = newId("ten");
   await c.env.DB.batch([
-    c.env.DB.prepare("INSERT INTO tenants (id, name, slug, plan) VALUES (?1, ?2, ?3, 'starter')").bind(tenantId, name, slug),
+    c.env.DB.prepare("INSERT INTO tenants (id, name, slug, plan, model_limit) VALUES (?1, ?2, ?3, 'starter', ?4)").bind(tenantId, name, slug, STARTER_MODEL_LIMIT),
     c.env.DB.prepare("INSERT INTO memberships (tenant_id, user_id, role) VALUES (?1, ?2, 'owner')").bind(tenantId, user.id),
     c.env.DB.prepare("INSERT INTO billing_accounts (tenant_id, provider, status) VALUES (?1, 'stripe', 'incomplete')").bind(tenantId),
     c.env.DB.prepare("INSERT INTO audit_log (id, tenant_id, user_email, action, detail) VALUES (?1, ?2, ?3, 'workspace.signup', ?4)").bind(
