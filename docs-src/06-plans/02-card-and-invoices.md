@@ -10,7 +10,7 @@ When you create a workspace yourself, you add a card before anything runs. Strip
 ## Signing up
 
 1. Open **/signup/**, name your workspace and, if you like, add your website.
-2. Stripe Checkout opens. Enter your card and confirm. This starts your subscription and saves the card for later invoices.
+2. Stripe Checkout opens. Enter your card and confirm. This starts a 14-day free trial and saves the card; the first invoice comes when the trial ends.
 3. You land back in the portal. It waits a moment for Stripe to confirm, then opens Setup so you can add your brand, prompts and competitors. Your first answers run as soon as setup is done.
 
 If you close Checkout without finishing, nothing is charged and no card is saved. Going back to **/signup/** picks up the same workspace instead of making a second one.
@@ -21,9 +21,8 @@ Each invoice has two parts:
 
 | Line | How it's worked out |
 |---|---|
-| Plan fee | A flat monthly amount, charged at the start of each period. |
-| Answers run | One unit per answer: one prompt, asked once, on one engine, for one country. |
-| Model spend | The estimated model cost of those answers, passed through. |
+| Plan fee | $150 a month, charged at the start of each period after the trial. |
+| Token usage | What the AI model calls behind your answers cost, passed through at cost. |
 
 Usage lines are billed at the end of each period for what actually ran. Usage is counted in our database as each answer finishes, totalled per hour, and sent to Stripe about 20 minutes after the hour ends. Each hourly total carries its own reference, so a retry can never count the same hour twice. The Usage page shows this month's totals and whether each hour has been sent.
 

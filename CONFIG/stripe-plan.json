@@ -1,25 +1,18 @@
 {
   "_note": "Test-mode prices for the Stripe sandbox. Placeholders: change the amounts before you take real payments. Amounts are in the smallest currency unit (cents). Re-running scripts/stripe-setup.mjs after a change makes a new price and moves the lookup key to it; existing subscriptions keep their old price.",
   "currency": "usd",
-  "trial_days": 0,
+  "trial_days": 14,
   "platform": {
     "product_name": "GEO Observability platform",
     "lookup_key": "geo_platform_monthly",
-    "unit_amount": 9900,
+    "unit_amount": 15000,
     "interval": "month"
   },
   "meters": {
-    "answers_run": {
-      "display_name": "GEO answers run",
-      "event_name": "geo_answers_run",
-      "product_name": "GEO answers run",
-      "lookup_key": "geo_answers_run_monthly",
-      "unit_amount_decimal": "2"
-    },
     "llm_cost_micros": {
-      "display_name": "GEO model spend (micro-dollars)",
+      "display_name": "GEO token usage (micro-dollars)",
       "event_name": "geo_llm_cost_micros",
-      "product_name": "GEO model spend pass-through",
+      "product_name": "GEO token usage",
       "lookup_key": "geo_llm_cost_monthly",
       "unit_amount_decimal": "0.0001"
     }

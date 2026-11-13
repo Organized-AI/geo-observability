@@ -57,7 +57,7 @@
 <h2 id="signing-up"><a class="anchor" href="#signing-up" aria-hidden="true" tabindex="-1">#</a>Signing up</h2>
 <ol>
 <li>Open <strong>/signup/</strong>, name your workspace and, if you like, add your website.</li>
-<li>Stripe Checkout opens. Enter your card and confirm. This starts your subscription and saves the card for later invoices.</li>
+<li>Stripe Checkout opens. Enter your card and confirm. This starts a 14-day free trial and saves the card; the first invoice comes when the trial ends.</li>
 <li>You land back in the portal. It waits a moment for Stripe to confirm, then opens Setup so you can add your brand, prompts and competitors. Your first answers run as soon as setup is done.</li>
 </ol>
 <p>If you close Checkout without finishing, nothing is charged and no card is saved. Going back to <strong>/signup/</strong> picks up the same workspace instead of making a second one.</p>
@@ -72,15 +72,11 @@
 </thead>
 <tbody><tr>
 <td>Plan fee</td>
-<td>A flat monthly amount, charged at the start of each period.</td>
+<td>$150 a month, charged at the start of each period after the trial.</td>
 </tr>
 <tr>
-<td>Answers run</td>
-<td>One unit per answer: one prompt, asked once, on one engine, for one country.</td>
-</tr>
-<tr>
-<td>Model spend</td>
-<td>The estimated model cost of those answers, passed through.</td>
+<td>Token usage</td>
+<td>What the AI model calls behind your answers cost, passed through at cost.</td>
 </tr>
 </tbody></table>
 </div>

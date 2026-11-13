@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.1
+- Pricing: 14-day free trial (card collected at signup), then $150 a month per workspace plus token usage at cost. The per-answer charge is gone. Rerun `npm run stripe:setup -- --put-secrets` to create the new Stripe prices; existing subscriptions keep their old prices.
+
 ## 1.3.0
 - Served at https://app.organizedai.vip/geo-observability through two Workers routes on this Worker (they take precedence over the organizedai-vanity-router on that host, which is left untouched).
 - `APP_URL` may carry a base path. Under it the Worker strips the path, rewrites root-relative links in HTML, prefixes its redirects and scopes the session cookie to the path (`__Secure-geo_session`, so other apps on the host never see it). Sign-in links, Stripe returns, share links and tracking snippets use the public address.
