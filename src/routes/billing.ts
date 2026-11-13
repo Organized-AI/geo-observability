@@ -15,7 +15,7 @@ import { assertSameOrigin, clientIp, normalizeEmail, rateLimit } from "../lib/se
 import { mailerKind } from "../lib/mailer";
 import { sendSignInLink } from "./auth";
 import { HttpError, newId, nowIso } from "../lib/util";
-import { appOrigin, billingEnabled, requireBilling } from "../billing/config";
+import { appOrigin, billingEnabled, keyProblem, parseBillingConfig, requireBilling } from "../billing/config";
 import { billingLocks, billingStatus } from "../billing/hooks";
 import { Stripe, StripeError, checkoutParams, verifyStripeSignature } from "../billing/stripe";
 import { handleStripeEvent, type StripeEvent } from "../billing/webhooks";
@@ -61,7 +61,7 @@ export function stripeFailure(e: unknown): HttpError {
   const err = e as StripeError;
   const raw = String(err?.message ?? e).replace(/\b(sk|rk|pk)_(test|live)_[A-Za-z0-9*]+/g, "$1_$2_…").slice(0, 300);
   console.error("stripe", err?.status ?? "", err?.code ?? "", raw);
-  if (err instanceof StripeError && err.status === 0) return new HttpError(502, "billing_unavailable", "We couldn't reach Stripe. Try again in a minute.");
+  if (err instanceof StripeError && err.status === 0) return new HttpError(502, "billing_unavailable", `We couldn't reach Stripe: ${raw}`);
   if (err instanceof StripeError && (err.status === 401 || err.status === 403)) {
     return new HttpError(502, "billing_misconfigured", `Stripe rejected this site's API key (${err.status}): ${raw}`);
   }
@@ -104,7 +104,12 @@ signupApi.get("/", async (c) => {
       .all<{ id: string; name: string; slug: string; billing_status: string }>();
     workspaces = owned.results ?? [];
   }
-  return c.json({ signed_in: !!who, email: who?.email ?? null, open: billingEnabled(c.env), email_ready: mailerKind(c.env) !== "none", workspaces });
+  const open = billingEnabled(c.env);
+  const setup_problem = open
+    ? null
+    : (keyProblem(c.env) ??
+      (parseBillingConfig(c.env.STRIPE_BILLING_CONFIG) ? "Live Stripe keys need STRIPE_LIVE_MODE set to true." : "STRIPE_BILLING_CONFIG is missing or isn't valid JSON from the setup script."));
+  return c.json({ signed_in: !!who, email: who?.email ?? null, open, setup_problem, email_ready: mailerKind(c.env) !== "none", workspaces });
 });
 
 /**

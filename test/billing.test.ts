@@ -97,6 +97,9 @@ describe("Stripe helpers", () => {
     expect(keyMode("rk_test_abc")).toBe("test");
     expect(keyMode("sk_live_abc")).toBe("live");
     expect(keyMode("pk_test_abc")).toBe("invalid");
+    expect(keyMode("sk_test_abc\n")).toBe("test"); // a pasted secret with a line break still works
+    expect(keyMode('"sk_test_abc"')).toBe("test");
+    expect(keyMode("sk_test_a b")).toBe("invalid");
     const base = { ...env, STRIPE_BILLING_CONFIG: JSON.stringify(CONFIG) } as Env;
     expect(billingEnabled({ ...base, STRIPE_SECRET_KEY: "sk_test_abc" })).toBe(true);
     expect(billingEnabled({ ...base, STRIPE_SECRET_KEY: "sk_live_abc" })).toBe(false);
@@ -295,7 +298,7 @@ describe("usage metering", () => {
       if (mode === "limit") return new Response(JSON.stringify({ error: { message: "Too many requests" } }), { status: 429 });
       return new Response(JSON.stringify({ object: "billing.meter_event" }), { status: 200 });
     };
-    const stripeEnv = { ...env, STRIPE_SECRET_KEY: "sk_test_fake", STRIPE_BILLING_CONFIG: JSON.stringify(CONFIG) } as Env;
+    const stripeEnv = { ...env, STRIPE_SECRET_KEY: "sk_test_fake\r\n", STRIPE_BILLING_CONFIG: JSON.stringify(CONFIG) } as Env;
     const provider = stripeProvider(stripeEnv, fakeFetch)!;
     expect(provider).not.toBeNull();
     const hour = h(1);

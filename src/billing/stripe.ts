@@ -4,7 +4,7 @@
  */
 import type { Env } from "../env";
 import { HttpError } from "../lib/util";
-import { STRIPE_API_VERSION, parseBillingConfig, keyMode, type StripeBillingConfig } from "./config";
+import { STRIPE_API_VERSION, cleanKey, parseBillingConfig, keyMode, type StripeBillingConfig } from "./config";
 import type { BillingProvider, PushResult, UsagePush } from "./hooks";
 
 export type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -45,11 +45,14 @@ export class StripeError extends Error {
 }
 
 export class Stripe {
+  private readonly key: string;
   constructor(
-    private readonly key: string,
+    key: string,
     private readonly fetcher: Fetcher = fetch,
     private readonly base = "https://api.stripe.com",
-  ) {}
+  ) {
+    this.key = cleanKey(key);
+  }
 
   async request<T = Record<string, any>>(method: "GET" | "POST" | "DELETE", path: string, params: Record<string, Param> = {}, idempotencyKey?: string): Promise<T> {
     const body = formEncode(params);

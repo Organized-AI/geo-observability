@@ -58,15 +58,32 @@ export function parseBillingConfig(raw: string | undefined): StripeBillingConfig
 
 export type KeyMode = "test" | "live" | "invalid";
 
-export function keyMode(key: string | undefined): KeyMode {
+/** The stored key without stray whitespace, line breaks or quotes, which a pasted secret often carries. */
+export function cleanKey(key: string | undefined): string {
+  return (key ?? "").trim().replace(/^["']+|["']+$/g, "").trim();
+}
+
+export function keyMode(rawKey: string | undefined): KeyMode {
+  const key = cleanKey(rawKey);
   if (!key) return "invalid";
+  if (!/^[A-Za-z0-9_]+$/.test(key)) return "invalid";
   if (/^(sk|rk)_test_/.test(key)) return "test";
   if (/^(sk|rk)_live_/.test(key)) return "live";
   return "invalid";
 }
 
+/** Why the stored key can't be used, in words for the owner, or null when it looks fine. */
+export function keyProblem(env: Env): string | null {
+  const key = cleanKey(env.STRIPE_SECRET_KEY);
+  if (!key) return "STRIPE_SECRET_KEY isn't set on the Worker.";
+  if (!/^[A-Za-z0-9_]+$/.test(key)) return "The STRIPE_SECRET_KEY stored on the Worker has characters a Stripe key can't contain. Set it again.";
+  if (!/^(sk|rk)_(test|live)_/.test(key)) return "STRIPE_SECRET_KEY isn't a Stripe secret key (sk_test_… or rk_test_…).";
+  return null;
+}
+
 /** True when the Worker has what it needs to take cards and push usage. */
 export function billingEnabled(env: Env): boolean {
+  if (keyProblem(env)) return false;
   const mode = keyMode(env.STRIPE_SECRET_KEY);
   if (mode === "invalid") return false;
   if (mode === "live" && env.STRIPE_LIVE_MODE !== "true") return false;
@@ -75,7 +92,7 @@ export function billingEnabled(env: Env): boolean {
 
 export function requireBilling(env: Env): { key: string; config: StripeBillingConfig } {
   if (!billingEnabled(env)) throw new HttpError(503, "billing_off", "Card billing isn't switched on for this site yet.");
-  return { key: env.STRIPE_SECRET_KEY as string, config: parseBillingConfig(env.STRIPE_BILLING_CONFIG) as StripeBillingConfig };
+  return { key: cleanKey(env.STRIPE_SECRET_KEY), config: parseBillingConfig(env.STRIPE_BILLING_CONFIG) as StripeBillingConfig };
 }
 
 export function graceDays(env: Env): number {
