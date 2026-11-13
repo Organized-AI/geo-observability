@@ -42,7 +42,7 @@
   "ai": { "binding": "AI" },
 
   // Cloudflare Email Service: sends sign-in links from EMAIL_FROM (a domain onboarded to Email Service).
-  "send_email": [{ "name": "EMAIL" }],
+  "send_email": [{ "name": "EMAIL", "remote": true }],
 
   "d1_databases": [
     { "binding": "DB", "database_name": "geo-observability", "database_id": "d5137b7a-b736-4a24-bb70-697a1adf331c", "migrations_dir": "migrations" }
@@ -99,7 +99,7 @@
         "STRIPE_LIVE_MODE": "false"
       },
       "ai": { "binding": "AI" },
-      "send_email": [{ "name": "EMAIL" }],
+      "send_email": [{ "name": "EMAIL", "remote": true }],
       "d1_databases": [
         { "binding": "DB", "database_name": "geo-observability-staging", "database_id": "REPLACE_WITH_STAGING_D1_ID", "migrations_dir": "migrations" }
       ],
