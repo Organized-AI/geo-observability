@@ -492,3 +492,5 @@ mark.mark-own { background: var(--mark-own); color: inherit; border-radius: 4px;
   .page-head { margin-bottom: 10px; }
 }
 .noscript { padding: 40px; text-align: center; }
+#user { display: flex; align-items: center; gap: 8px; }
+@media (max-width: 560px) { #user .user-chip { display: none; } }

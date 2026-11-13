@@ -11,7 +11,7 @@ export class ApiError extends Error {
 
 function messageFor(status, code, serverMsg) {
   if (status === 0) return "Can't reach the server. Check your connection and try again.";
-  if (status === 401) return "You're signed out. Reload the page to sign in again.";
+  if (status === 401) return "You're signed out. Sign in again to carry on.";
   if (status === 403 && code === "read_only") return "This workspace is read-only, so changes are turned off.";
   if (status === 403 && code === "billing_locked") return serverMsg || "Changes are paused until billing is sorted out.";
   if (status === 403) return "You don't have access to this.";

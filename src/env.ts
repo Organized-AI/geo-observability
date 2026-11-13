@@ -11,6 +11,7 @@ export interface Env {
   RUN_PROMPT: Workflow<RunJob>;
   INSIGHTS: Workflow<InsightsJob>;
   PROGRESS: DurableObjectNamespace<RunProgress>;
+  EMAIL?: unknown; // Cloudflare Email Service send_email binding
   VIS_EVENTS?: AnalyticsEngineDataset;
   TRAFFIC_EVENTS?: AnalyticsEngineDataset;
 
@@ -28,7 +29,10 @@ export interface Env {
   BILLING_GRACE_DAYS?: string;
   STRIPE_AUTOMATIC_TAX?: string; // "true" turns on Stripe Tax in Checkout; off by default
   STRIPE_LIVE_MODE?: string; // must be "true" before a live key is accepted
-  APP_URL?: string; // public origin for Stripe return links; defaults to the request origin
+  APP_URL?: string; // public origin for Stripe return links and sign-in emails; defaults to the request origin
+  EMAIL_FROM?: string; // sender address on a domain onboarded to Cloudflare Email Service (or verified at Resend)
+  EMAIL_FROM_NAME?: string;
+  EMAIL_MODE?: string; // "resend" to skip the Cloudflare binding; "outbox" (development only) writes to D1 instead of sending
 
   // secrets (all optional: missing provider keys fall back to the labelled stub engine)
   CLOUDFLARE_ACCOUNT_ID?: string;
@@ -46,6 +50,7 @@ export interface Env {
   STRIPE_SECRET_KEY?: string; // sk_test_… until live billing is approved
   STRIPE_WEBHOOK_SECRET?: string; // whsec_… for /webhooks/stripe
   STRIPE_BILLING_CONFIG?: string; // JSON from scripts/stripe-setup.mjs (price and meter ids)
+  RESEND_API_KEY?: string; // fallback email provider when the Cloudflare binding isn't usable
   DEV_AUTH_EMAIL?: string; // local development only; ignored unless ENVIRONMENT is "development"
   AGENCY_EMAILS?: string; // comma-separated emails that see every tenant (agency staff)
 }

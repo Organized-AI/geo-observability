@@ -37,7 +37,10 @@ async function init() {
   if (new URLSearchParams(location.search).get("canceled")) say("No card was saved, so nothing was charged. You can try again whenever you're ready.", "warn");
   try {
     const me = await call("GET");
-    $("who").textContent = `Signed in as ${me.email}.`;
+    if (me.signed_in) {
+      $("email-field").hidden = true;
+      $("who").textContent = `Signed in as ${me.email}. The new workspace will be yours.`;
+    }
     const list = (me.workspaces || []).filter((w) => w.billing_status !== "incomplete");
     if (list.length) {
       $("existing").hidden = false;
@@ -54,22 +57,30 @@ async function init() {
     }
     if (!me.open) {
       form.querySelectorAll("input, button").forEach((el) => { el.disabled = true; });
-      say("Sign-up isn't open yet. Ask your Organized AI contact for access.", "warn");
+      say("Sign-up isn't open yet. Check back soon, or ask your Organized AI contact.", "warn");
     }
   } catch (e) {
-    if (e.status === 401) say("Sign in first, then reload this page.", "neg");
-    else say(e.message, "neg");
+    say(e.message, "neg");
   }
 }
 
 form.addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const name = $("name").value.trim();
+  const emailBox = $("email");
+  const needsEmail = !$("email-field").hidden;
+  if (needsEmail && !emailBox.checkValidity()) { say("Enter a valid email address.", "neg"); emailBox.focus(); return; }
   if (!name) { say("Give your workspace a name.", "neg"); $("name").focus(); return; }
   submit.disabled = true;
   submit.textContent = "Opening Stripe…";
   try {
-    const r = await call("POST", { name, website: $("website").value.trim() });
+    const r = await call("POST", { email: needsEmail ? emailBox.value.trim() : undefined, name, website: $("website").value.trim() });
+    if (r.status === "check_email") {
+      say(r.message, "info");
+      submit.disabled = false;
+      submit.textContent = "Continue to add a card";
+      return;
+    }
     if (r.slug) { try { localStorage.setItem("geo-tenant", r.slug); } catch { /* storage off */ } }
     location.assign(r.checkout_url);
   } catch (e) {

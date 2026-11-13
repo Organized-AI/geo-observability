@@ -26,8 +26,8 @@ npx wrangler secret put ANTHROPIC_API_KEY
 npx wrangler secret put GEMINI_API_KEY
 npx wrangler secret put PERPLEXITY_API_KEY
 npx wrangler secret put SHARE_LINK_SECRET       # long random string
-npx wrangler secret put ACCESS_TEAM_DOMAIN      # e.g. yourteam.cloudflareaccess.com
-npx wrangler secret put ACCESS_AUD              # Access application audience tag
+npx wrangler secret put EMAIL_FROM              # sender for sign-in links, on a domain onboarded to Cloudflare Email Service
+# optional: ACCESS_TEAM_DOMAIN, ACCESS_AUD (Cloudflare Access for staff), RESEND_API_KEY (email fallback)
 npx wrangler secret put AGENCY_EMAILS           # comma-separated; these users see every client
 # optional: OTEL_EXPORTER_URL, OTEL_EXPORTER_HEADERS, AIG_UNIFIED_BILLING=true (if AI Gateway pays providers)
 ```
@@ -45,9 +45,11 @@ npm run seed:demo                # optional: read-only demo workspace at /app/ w
 
 Set `DEMO_MODE` to `"false"` in wrangler.jsonc once real clients are on it.
 
-## 4. Cloudflare Access
+## 4. Sign-in
 
-Zero Trust → Access → Applications → self-hosted, domain = the Worker's host, paths `/app*`, `/api*` and `/signup*` (exclude `/api/v1*`, `/api/shared*`, `/mcp`, `/ingest*`, `/webhooks*`, `/tap.js`, `/docs*`, `/`). Policy: allow the agency's emails plus each client's email domain. Copy the audience tag into `ACCESS_AUD`.
+Clients sign up at `/signup/` and sign in with emailed links at `/login/`; sessions are an HttpOnly cookie. Set up sending once: [sign-in-email.md](sign-in-email.md). Agency staff named in `AGENCY_EMAILS` can sign in by link too.
+
+Cloudflare Access is optional, for staff only: if you add it, protect only what staff use and keep `/`, `/signup*`, `/login*`, `/auth*`, `/app*`, `/api*`, `/webhooks*`, `/docs*`, `/mcp`, `/ingest*`, `/tap.js` public. Then set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`.
 
 ## 4b. Stripe billing
 

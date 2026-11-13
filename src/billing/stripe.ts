@@ -113,7 +113,7 @@ export function checkoutParams(
     client_reference_id: o.tenantId,
     line_items: lineItems,
     payment_method_collection: "always",
-    success_url: `${o.origin}/app/?billing=success#/usage`,
+    success_url: `${o.origin}/auth/checkout-return?cs={CHECKOUT_SESSION_ID}`,
     cancel_url: `${o.origin}/signup/?canceled=1`,
     metadata: { tenant_id: o.tenantId, app: "geo-observability" },
     subscription_data: subscriptionData,

@@ -55,6 +55,11 @@
         <ul class="su-list" id="existing-list"></ul>
       </div>
       <form id="form" novalidate>
+        <div class="su-field" id="email-field">
+          <label for="email">Work email</label>
+          <input class="su-input" id="email" name="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@company.com">
+          <small>Your sign-in links go here. No password needed.</small>
+        </div>
         <div class="su-field">
           <label for="name">Workspace name</label>
           <input class="su-input" id="name" name="name" required maxlength="120" autocomplete="organization" placeholder="e.g. Northwind Coffee">
@@ -71,10 +76,10 @@
       </form>
       <ol class="su-steps">
         <li>Stripe saves your card and starts the subscription.</li>
-        <li>You come back here to set up your brand, prompts and competitors.</li>
+        <li>You come back signed in to set up your brand, prompts and competitors.</li>
         <li>Your first answers run as soon as setup is done.</li>
       </ol>
-      <p class="su-who" id="who"></p>
+      <p class="su-who" id="who">Already have a workspace? <a href="/login/">Sign in</a></p>
     </div>
   </main>
   <script src="/vendor/gsap.min.js" defer></script>

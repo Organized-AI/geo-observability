@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0
+- Public signup: email and workspace name, then Stripe Checkout; you come back signed in. No Cloudflare Access needed.
+- Email sign-in at /login/: single-use 15-minute links (hashed), confirm-button page, HttpOnly session cookie, rate limits, sign out.
+- Email through Cloudflare Email Service (`send_email` binding, `EMAIL_FROM`), Resend as a fallback, D1 outbox for local development.
+- Same-origin check on cookie-authenticated writes; domain auto-join only for confirmed emails. Cloudflare Access stays optional for staff.
+- Sign up and Sign in links on the landing page.
+
 ## 1.1.0
 - Billing (Phase 6): self-serve signup with card on file through Stripe Checkout (subscription: platform fee + metered prices), Stripe customer portal for card changes, invoices and cancellation.
 - Usage pushed hourly to Stripe meter events with idempotent `tenant:meter:hour` identifiers; pending/pushed/skipped/failed states with retries.

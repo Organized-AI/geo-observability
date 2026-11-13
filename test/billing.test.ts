@@ -84,7 +84,7 @@ describe("Stripe helpers", () => {
     expect(p.line_items).toEqual([{ price: "price_platform", quantity: 1 }, { price: "price_answers" }, { price: "price_llm" }]);
     expect(p.subscription_data.metadata.tenant_id).toBe("ten_1");
     expect(p.automatic_tax).toBeUndefined();
-    expect(p.success_url).toBe("https://geo.test/app/?billing=success#/usage");
+    expect(p.success_url).toBe("https://geo.test/auth/checkout-return?cs={CHECKOUT_SESSION_ID}");
     const taxed = checkoutParams(cfg, { customer: "cus_1", tenantId: "ten_1", origin: "https://geo.test", automaticTax: true }) as Record<string, any>;
     expect(taxed.automatic_tax).toEqual({ enabled: true });
     expect(taxed.billing_address_collection).toBe("required");

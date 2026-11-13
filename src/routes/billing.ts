@@ -10,7 +10,10 @@
  */
 import { Hono } from "hono";
 import type { Env } from "../env";
-import { accessEmail, requireOwner, resolveSession, type Session } from "../lib/auth";
+import { identify, requireOwner, resolveSession, type Session } from "../lib/auth";
+import { assertSameOrigin, clientIp, normalizeEmail, rateLimit } from "../lib/session";
+import { mailerKind } from "../lib/mailer";
+import { sendSignInLink } from "./auth";
 import { HttpError, newId, nowIso } from "../lib/util";
 import { appOrigin, billingEnabled, requireBilling } from "../billing/config";
 import { billingLocks, billingStatus } from "../billing/hooks";
@@ -67,45 +70,81 @@ async function stripeCall<T>(fn: () => Promise<T>): Promise<T> {
 export const signupApi = new Hono<{ Bindings: Env }>();
 
 signupApi.get("/", async (c) => {
-  const email = await accessEmail(c.req.raw, c.env);
-  if (!email) throw new HttpError(401, "unauthenticated", "Sign in through Cloudflare Access to create a workspace.");
-  const owned = await c.env.DB.prepare(
-    `SELECT t.id, t.name, t.slug, COALESCE(b.status, 'active') AS billing_status
-     FROM users u JOIN memberships m ON m.user_id = u.id AND m.role = 'owner' JOIN tenants t ON t.id = m.tenant_id
-     LEFT JOIN billing_accounts b ON b.tenant_id = t.id WHERE u.email = ?1 ORDER BY t.created_at`,
-  )
-    .bind(email)
-    .all<{ id: string; name: string; slug: string; billing_status: string }>();
-  return c.json({ email, open: billingEnabled(c.env), workspaces: owned.results ?? [] });
+  const who = await identify(c.req.raw, c.env);
+  let workspaces: { id: string; name: string; slug: string; billing_status: string }[] = [];
+  if (who) {
+    const owned = await c.env.DB.prepare(
+      `SELECT t.id, t.name, t.slug, COALESCE(b.status, 'active') AS billing_status
+       FROM users u JOIN memberships m ON m.user_id = u.id AND m.role = 'owner' JOIN tenants t ON t.id = m.tenant_id
+       LEFT JOIN billing_accounts b ON b.tenant_id = t.id WHERE u.email = ?1 ORDER BY t.created_at`,
+    )
+      .bind(who.email)
+      .all<{ id: string; name: string; slug: string; billing_status: string }>();
+    workspaces = owned.results ?? [];
+  }
+  return c.json({ signed_in: !!who, email: who?.email ?? null, open: billingEnabled(c.env), email_ready: mailerKind(c.env) !== "none", workspaces });
 });
 
+/**
+ * Public signup. Anyone can start one with an email and a workspace name; the card is taken by Stripe Checkout.
+ * If the email already belongs to an account, we email a sign-in link instead of touching that account.
+ */
 signupApi.post("/", async (c) => {
-  const email = await accessEmail(c.req.raw, c.env);
-  if (!email) throw new HttpError(401, "unauthenticated", "Sign in through Cloudflare Access to create a workspace.");
+  assertSameOrigin(c.req.raw, c.env.APP_URL);
   requireBilling(c.env);
-  const b = await readJson<{ name?: unknown; website?: unknown }>(c.req.raw);
+  await rateLimit(c.env, "signup_ip", clientIp(c.req.raw), 10, 60);
+  const b = await readJson<{ email?: unknown; name?: unknown; website?: unknown }>(c.req.raw);
   const name = cleanText(b.name, 120, "Workspace name", true);
   const website = cleanText(b.website, 200, "Website", false);
   const domain = website ? cleanDomain(website) : "";
   if (domain && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) throw new HttpError(400, "bad_request", "Website should look like example.com");
 
-  let user = await c.env.DB.prepare("SELECT id FROM users WHERE email = ?1").bind(email).first<{ id: string }>();
+  const who = await identify(c.req.raw, c.env);
+  let email: string;
+  if (who) email = who.email;
+  else {
+    const e = normalizeEmail(b.email);
+    if (!e) throw new HttpError(400, "bad_request", "Enter a valid email address.");
+    email = e;
+  }
+
+  let user = await c.env.DB.prepare("SELECT id, signup_pending FROM users WHERE email = ?1").bind(email).first<{ id: string; signup_pending: number }>();
+  if (!who && user) {
+    // An account already exists (or a signup was paid for but never confirmed): it's only reachable by its owner's inbox.
+    const paid = await c.env.DB.prepare(
+      `SELECT 1 FROM memberships m JOIN billing_accounts b ON b.tenant_id = m.tenant_id
+       WHERE m.user_id = ?1 AND (b.status != 'incomplete' OR b.checkout_claimed_at IS NOT NULL) LIMIT 1`,
+    )
+      .bind(user.id)
+      .first();
+    const other = await c.env.DB.prepare(
+      `SELECT 1 FROM memberships m LEFT JOIN billing_accounts b ON b.tenant_id = m.tenant_id WHERE m.user_id = ?1 AND b.tenant_id IS NULL LIMIT 1`,
+    )
+      .bind(user.id)
+      .first();
+    if (!user.signup_pending || paid || other) {
+      await rateLimit(c.env, "login_email", email, 5, 60);
+      await sendSignInLink(c.env, c.req.raw, email, "Someone (hopefully you) tried to create a workspace with this email. Sign in first, then create it from the signup page.");
+      return c.json({ status: "check_email", message: "That email already has an account. We've sent it a sign-in link; sign in, then create the workspace." });
+    }
+  }
   if (!user) {
-    user = { id: newId("usr") };
-    await c.env.DB.prepare("INSERT INTO users (id, email) VALUES (?1, ?2)").bind(user.id, email).run();
+    user = { id: newId("usr"), signup_pending: who ? 0 : 1 };
+    await c.env.DB.prepare("INSERT INTO users (id, email, signup_pending) VALUES (?1, ?2, ?3)").bind(user.id, email, user.signup_pending).run();
   }
 
   // Someone who started signup and left Checkout gets their unfinished workspace back instead of a second one.
   const unfinished = await c.env.DB.prepare(
     `SELECT t.id, b.customer_ref FROM memberships m JOIN tenants t ON t.id = m.tenant_id JOIN billing_accounts b ON b.tenant_id = t.id
-     WHERE m.user_id = ?1 AND m.role = 'owner' AND b.provider = 'stripe' AND b.status = 'incomplete' ORDER BY t.created_at LIMIT 1`,
+     WHERE m.user_id = ?1 AND m.role = 'owner' AND b.provider = 'stripe' AND b.status = 'incomplete' AND b.checkout_claimed_at IS NULL
+     ORDER BY t.created_at LIMIT 1`,
   )
     .bind(user.id)
     .first<{ id: string; customer_ref: string | null }>();
   if (unfinished?.customer_ref) {
     await c.env.DB.prepare("UPDATE tenants SET name = ?2 WHERE id = ?1").bind(unfinished.id, name).run();
     const url = await stripeCall(() => startCheckout(c.env, c.req.raw, unfinished.id, unfinished.customer_ref as string));
-    return c.json({ tenant_id: unfinished.id, checkout_url: url, resumed: true });
+    return c.json({ status: "checkout", tenant_id: unfinished.id, checkout_url: url, resumed: true });
   }
 
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "workspace";
@@ -132,7 +171,7 @@ signupApi.post("/", async (c) => {
     await c.env.DB.prepare("UPDATE billing_accounts SET customer_ref = ?2 WHERE tenant_id = ?1").bind(tenantId, customer.id).run();
     return startCheckout(c.env, c.req.raw, tenantId, customer.id);
   });
-  return c.json({ tenant_id: tenantId, slug, website: domain || null, checkout_url: url }, 201);
+  return c.json({ status: "checkout", tenant_id: tenantId, slug, website: domain || null, checkout_url: url }, 201);
 });
 
 // ------------------------------------------------------------------ billing for an existing workspace
@@ -140,6 +179,7 @@ signupApi.post("/", async (c) => {
 export const billingApi = new Hono<BillingEnv>();
 
 billingApi.use("*", async (c, next) => {
+  assertSameOrigin(c.req.raw, c.env.APP_URL);
   c.set("session", await resolveSession(c.req.raw, c.env));
   await next();
 });

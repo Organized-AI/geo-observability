@@ -2,6 +2,7 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { Env } from "../env";
 import { TenantDB, type TenantRow } from "./db";
 import { HttpError, newId } from "./util";
+import { sessionUser } from "./session";
 
 export type Role = "owner" | "editor" | "viewer";
 
@@ -50,24 +51,41 @@ function agencyEmails(env: Env & { AGENCY_EMAILS?: string }): Set<string> {
   );
 }
 
+export interface Identity {
+  email: string;
+  /** Email proven: a used sign-in link, Cloudflare Access, or local development. */
+  verified: boolean;
+  via: "session" | "access" | "dev";
+}
+
+/** Who is calling: session cookie (sign-in link) → Cloudflare Access (optional, for staff) → local dev email. */
+export async function identify(req: Request, env: Env): Promise<Identity | null> {
+  const s = await sessionUser(req, env);
+  if (s) return { email: s.email, verified: s.verified, via: "session" };
+  const email = await accessEmail(req, env);
+  if (!email) return null;
+  return { email, verified: true, via: env.ENVIRONMENT === "development" && env.DEV_AUTH_EMAIL ? "dev" : "access" };
+}
+
 /**
  * Resolves who is calling and which tenant they act on.
- * Order: Cloudflare Access identity → (demo mode) read-only demo tenant → 401.
+ * Order: session cookie / Access identity → (demo mode, anonymous visitors only) read-only demo tenant → 401.
  */
 export async function resolveSession(req: Request, env: Env & { AGENCY_EMAILS?: string }): Promise<Session> {
-  const email = await accessEmail(req, env);
+  const who = await identify(req, env);
   const wanted = req.headers.get("x-tenant") ?? new URL(req.url).searchParams.get("tenant");
 
-  if (!email) {
+  if (!who) {
     if (env.DEMO_MODE === "true") return demoSession(env);
-    throw new HttpError(401, "unauthenticated", "Sign in through Cloudflare Access to use the portal.");
+    throw new HttpError(401, "unauthenticated", "Sign in to use the portal.");
   }
+  const email = who.email;
 
   // Upsert the user; agency staff are named in AGENCY_EMAILS.
   let user = await env.DB.prepare("SELECT id, name, is_agency FROM users WHERE email = ?1")
     .bind(email)
     .first<{ id: string; name: string | null; is_agency: number }>();
-  const shouldBeAgency = agencyEmails(env).has(email) ? 1 : 0;
+  const shouldBeAgency = agencyEmails(env).has(email) && who.verified ? 1 : 0;
   if (!user) {
     const id = newId("usr");
     await env.DB.prepare("INSERT INTO users (id, email, is_agency) VALUES (?1, ?2, ?3)").bind(id, email, shouldBeAgency).run();
@@ -77,14 +95,16 @@ export async function resolveSession(req: Request, env: Env & { AGENCY_EMAILS?: 
     user.is_agency = 1;
   }
 
-  // Users on a tenant's email domain join it as viewers the first time they arrive.
-  const domain = email.split("@")[1] ?? "";
-  await env.DB.prepare(
-    `INSERT OR IGNORE INTO memberships (tenant_id, user_id, role)
-     SELECT id, ?1, 'viewer' FROM tenants WHERE email_domain = ?2`,
-  )
-    .bind(user.id, domain)
-    .run();
+  // Users on a tenant's email domain join it as viewers the first time they arrive, but only with a proven email.
+  if (who.verified) {
+    const domain = email.split("@")[1] ?? "";
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO memberships (tenant_id, user_id, role)
+       SELECT id, ?1, 'viewer' FROM tenants WHERE email_domain = ?2`,
+    )
+      .bind(user.id, domain)
+      .run();
+  }
 
   let tenants: { id: string; name: string; slug: string; role: Role }[];
   if (user.is_agency) {
@@ -105,10 +125,7 @@ export async function resolveSession(req: Request, env: Env & { AGENCY_EMAILS?: 
     tenants = r.results ?? [];
   }
 
-  if (!tenants.length) {
-    if (env.DEMO_MODE === "true") return demoSession(env, email);
-    throw new HttpError(403, "no_tenant", "Your account isn't linked to a client workspace yet.");
-  }
+  if (!tenants.length) throw new HttpError(403, "no_tenant", "Your account isn't linked to a workspace yet.");
   const chosen = (wanted && tenants.find((t) => t.id === wanted || t.slug === wanted)) || tenants[0];
   if (wanted && chosen.id !== wanted && chosen.slug !== wanted) {
     throw new HttpError(403, "forbidden", "You don't have access to that workspace.");
@@ -149,8 +166,9 @@ async function demoSession(env: Env, email = "demo@visitor"): Promise<Session> {
 
 /** The caller's email if they are agency staff (AGENCY_EMAILS or users.is_agency), else null. */
 export async function agencyEmail(req: Request, env: Env & { AGENCY_EMAILS?: string }): Promise<string | null> {
-  const email = await accessEmail(req, env);
-  if (!email) return null;
+  const who = await identify(req, env);
+  if (!who || !who.verified) return null;
+  const email = who.email;
   if (agencyEmails(env).has(email)) return email;
   const u = await env.DB.prepare("SELECT is_agency FROM users WHERE email = ?1").bind(email).first<{ is_agency: number }>();
   return u?.is_agency ? email : null;

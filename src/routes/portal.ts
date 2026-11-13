@@ -11,6 +11,7 @@ import { enqueuePass } from "../workflows/scheduler";
 import { progressStub } from "../durable/progress";
 import { contentBrief, draftProfile, generatePrompts, suggestCompetitors, suggestTopics, type Profile } from "../onboarding/assist";
 import { billingBanner, billingLocks, billingStatus } from "../billing/hooks";
+import { assertSameOrigin } from "../lib/session";
 import { TenantDB, type BrandRow, type ProjectRow, type PromptRow } from "../lib/db";
 
 export type AppEnv = { Bindings: Env; Variables: { session: Session } };
@@ -21,6 +22,7 @@ const COUNTRY = /^[A-Z]{2}$/;
 const api = new Hono<AppEnv>();
 
 api.use("*", async (c, next) => {
+  assertSameOrigin(c.req.raw, c.env.APP_URL);
   const s = await resolveSession(c.req.raw, c.env);
   // A Stripe-billed workspace with no card, an unpaid invoice or an ended subscription is read-only for its own users.
   if (!s.demo && !s.isAgency) {

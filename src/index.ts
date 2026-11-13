@@ -10,6 +10,7 @@ import { rollupRecent } from "./metrics/rollup";
 import { aggregateUsage } from "./billing/hooks";
 import { stripeProvider } from "./billing/stripe";
 import { billingApi, signupApi, stripeWebhook } from "./routes/billing";
+import { authApp } from "./routes/auth";
 
 export { RunPromptWorkflow, InsightsWorkflow } from "./workflows/run-prompt";
 export { RunProgress } from "./durable/progress";
@@ -35,6 +36,7 @@ app.get("/healthz", (c) => c.json({ ok: true, env: c.env.ENVIRONMENT }));
 app.route("/api/shared", sharedApi);
 app.route("/api/tenants", tenantsApi);
 app.route("/api/v1", v1);
+app.route("/auth", authApp);
 app.route("/api/signup", signupApi);
 app.route("/api/billing", billingApi);
 app.route("/api", portalApi);

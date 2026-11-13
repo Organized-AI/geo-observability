@@ -9,6 +9,8 @@ ANTHROPIC_API_KEY=
 GEMINI_API_KEY=
 PERPLEXITY_API_KEY=
 SHARE_LINK_SECRET=change-me-to-a-long-random-string
+# Sign-in emails are written to the D1 email_outbox table instead of sent (development only).
+EMAIL_MODE=outbox
 # Stripe sandbox (optional): see DOCUMENTATION/stripe-billing.md. Test keys only.
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=

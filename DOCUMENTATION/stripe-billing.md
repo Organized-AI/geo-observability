@@ -34,10 +34,9 @@ If the webhook endpoint already existed, Stripe won't hand back its signing secr
 npm run deploy:production   # applies migration 0002_billing.sql, then deploys
 ```
 
-## 4. Cloudflare Access
+## 4. Sign-in email
 
-- Keep `/webhooks/*` **outside** Access (Stripe signs its requests; Access would block them).
-- `/signup/*` must be **inside** Access so the Worker knows who is signing up. For self-serve signup, the Access policy on `/signup*`, `/app*` and `/api*` has to let new people sign in (for example a one-time PIN policy for any email). Who may sign up is your call; until you open it, only people Access already allows can.
+Signup is public and sign-in uses emailed links, so no Cloudflare Access is needed. Set up email once: see [sign-in-email.md](sign-in-email.md). If you do use Access for staff, keep `/signup*`, `/login*`, `/auth*` and `/webhooks*` outside it.
 
 ## Sales tax
 
@@ -45,9 +44,9 @@ npm run deploy:production   # applies migration 0002_billing.sql, then deploys
 
 ## Testing a signup in the sandbox
 
-1. Open `https://<your worker host>/signup/`, sign in through Access, name a workspace, continue.
+1. Open `https://<your worker host>/signup/`, enter an email you can read and a workspace name, continue.
 2. In Checkout use card `4242 4242 4242 4242`, any future expiry, any CVC and postcode.
-3. Back in the portal the banner waits for the webhook, then Setup opens. In Stripe (sandbox) the customer has an active subscription with three prices.
+3. You come back signed in. The banner waits for the webhook, then Setup opens. A sign-in link also arrives by email; use it to confirm the address. In Stripe (sandbox) the customer has an active subscription with three prices.
 4. Run a pass from Setup. About 20 minutes after the hour ends, Usage & API → Billing shows the hour as "Sent to Stripe", and the meter shows the events in Stripe (Billing → Meters).
 5. Failed payment: open Manage billing and switch the card to `4000 0000 0000 0341` (it saves, then every charge declines). In the Stripe dashboard create a one-off invoice for that customer and let Stripe charge it. The `invoice.payment_failed` webhook puts the workspace in past due, and the portal shows the banner with the grace date.
 6. Cancel from Manage billing → the subscription ends at period end; cancel immediately in the dashboard to see the read-only state.

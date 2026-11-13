@@ -7,9 +7,13 @@ description: How sign-in works, what each role can do, and what demo mode shows.
 
 ## Signing in
 
-The portal sits behind **Cloudflare Access**. When you open it, Access asks you to sign in with whatever your administrator has set up, such as a one-time code sent to your email or your company's single sign-on. Once Access lets you through, the portal knows who you are.
+There's no password. Open **/login/**, enter your email, and we send you a sign-in link. The link works once and expires after 15 minutes. Opening it shows a **Sign in** button; press it on the device you want to use. You then stay signed in on that browser for 30 days, or until you press **Sign out** in the top bar.
 
-If Access turns you away, you're not on its allow list. Ask your administrator to add you.
+If no email arrives, check spam, and make sure you used the address your workspace knows. For safety the sign-in page gives the same answer whether or not an address has an account.
+
+When you create a workspace yourself at **/signup/**, you come back from Stripe already signed in to that workspace. We also email you a sign-in link: use it once to confirm your email, which you'll need before you can be added to other workspaces automatically.
+
+Some agencies also put their own staff behind Cloudflare Access. If yours does, Access signs you in instead and you won't need a link.
 
 ## Roles
 
@@ -23,7 +27,7 @@ Within a workspace, each person has one role:
 
 If a viewer tries to change something, the portal says the workspace is read-only for them. Ask an owner if you need a different role.
 
-Access decides whether you can reach the portal at all. Your role decides what you can do inside a workspace.
+Signing in decides who you are. Your role decides what you can do inside a workspace. People with an email on a workspace's company domain join it as viewers the first time they sign in with a confirmed email.
 
 ## Agency staff
 
@@ -39,4 +43,4 @@ An administrator can turn on demo mode (`DEMO_MODE`). Visitors who aren't signed
 
 ## API and MCP
 
-The API and MCP server don't use Access. They use API keys instead. See [API: authentication and rate limits](/docs/api-authentication/).
+The API and MCP server don't use sign-in links. They use API keys instead. See [API: authentication and rate limits](/docs/api-authentication/).

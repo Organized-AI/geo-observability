@@ -54,8 +54,10 @@
       <p class="eyebrow">Reference</p>
       <h1>Logins and roles</h1>
 <h2 id="signing-in"><a class="anchor" href="#signing-in" aria-hidden="true" tabindex="-1">#</a>Signing in</h2>
-<p>The portal sits behind <strong>Cloudflare Access</strong>. When you open it, Access asks you to sign in with whatever your administrator has set up, such as a one-time code sent to your email or your company&#39;s single sign-on. Once Access lets you through, the portal knows who you are.</p>
-<p>If Access turns you away, you&#39;re not on its allow list. Ask your administrator to add you.</p>
+<p>There&#39;s no password. Open <strong>/login/</strong>, enter your email, and we send you a sign-in link. The link works once and expires after 15 minutes. Opening it shows a <strong>Sign in</strong> button; press it on the device you want to use. You then stay signed in on that browser for 30 days, or until you press <strong>Sign out</strong> in the top bar.</p>
+<p>If no email arrives, check spam, and make sure you used the address your workspace knows. For safety the sign-in page gives the same answer whether or not an address has an account.</p>
+<p>When you create a workspace yourself at <strong>/signup/</strong>, you come back from Stripe already signed in to that workspace. We also email you a sign-in link: use it once to confirm your email, which you&#39;ll need before you can be added to other workspaces automatically.</p>
+<p>Some agencies also put their own staff behind Cloudflare Access. If yours does, Access signs you in instead and you won&#39;t need a link.</p>
 <h2 id="roles"><a class="anchor" href="#roles" aria-hidden="true" tabindex="-1">#</a>Roles</h2>
 <p>Within a workspace, each person has one role:</p>
 <div class="table-wrap"><table>
@@ -80,7 +82,7 @@
 </tbody></table>
 </div>
 <p>If a viewer tries to change something, the portal says the workspace is read-only for them. Ask an owner if you need a different role.</p>
-<p>Access decides whether you can reach the portal at all. Your role decides what you can do inside a workspace.</p>
+<p>Signing in decides who you are. Your role decides what you can do inside a workspace. People with an email on a workspace&#39;s company domain join it as viewers the first time they sign in with a confirmed email.</p>
 <h2 id="agency-staff"><a class="anchor" href="#agency-staff" aria-hidden="true" tabindex="-1">#</a>Agency staff</h2>
 <p>Agency staff see every client workspace in the workspace switcher. See <a href="/docs/agency-getting-started/">Agencies: getting started</a>.</p>
 <h2 id="demo-mode"><a class="anchor" href="#demo-mode" aria-hidden="true" tabindex="-1">#</a>Demo mode</h2>
@@ -88,7 +90,7 @@
 <h2 id="share-links"><a class="anchor" href="#share-links" aria-hidden="true" tabindex="-1">#</a>Share links</h2>
 <p><a href="/docs/saved-views-sharing-exports/#share-links">Share links</a> let someone see a saved view without signing in. They&#39;re read-only and expire.</p>
 <h2 id="api-and-mcp"><a class="anchor" href="#api-and-mcp" aria-hidden="true" tabindex="-1">#</a>API and MCP</h2>
-<p>The API and MCP server don&#39;t use Access. They use API keys instead. See <a href="/docs/api-authentication/">API: authentication and rate limits</a>.</p>
+<p>The API and MCP server don&#39;t use sign-in links. They use API keys instead. See <a href="/docs/api-authentication/">API: authentication and rate limits</a>.</p>
 
       <nav class="pager" aria-label="Previous and next page"><a class="pager-link pager-prev" href="/docs/metrics-glossary/"><span class="pager-label">Previous</span><span class="pager-title">Metrics glossary</span></a><a class="pager-link pager-next" href="/docs/engines-reference/"><span class="pager-label">Next</span><span class="pager-title">Engines reference</span></a></nav>
     </article>

@@ -23,6 +23,7 @@ AI search visibility (AEO/GEO) tracking with an observability layer, for client 
 - Report queries start from `runsCte()`; join mentions/citations as `FROM r CROSS JOIN mentions m ON m.run_id = r.id`.
 - Money is integer micros. Dates are UTC `YYYY-MM-DD`.
 - Errors: throw `HttpError(status, code, message)`; messages are user-facing and plain.
+- Identity: `identify()` in `src/lib/auth.ts` (session cookie from an emailed link → optional Cloudflare Access → dev email). Store only SHA-256 of tokens. Domain auto-join needs a verified email. State-changing routes call `assertSameOrigin`.
 
 ## DO NOT
 - Don't write SQL outside `TenantDB` for tenant data, and don't pass unused binds (D1 rejects them).

@@ -6,7 +6,7 @@ See where AI assistants recommend a brand, and what it's worth.
 - **Score** visibility, share of voice, position, sentiment, win rate and citations; see which sources feed answers that name competitors but not you.
 - **Observe** what happens next: AI crawler hits and AI-referred visits at the edge, and server-side conversions, joined to the pages answers cite.
 - **Act** on daily insights, ranked actions and content briefs.
-- **Share** through a client portal behind Cloudflare Access, read-only share links, a REST API and an MCP server.
+- **Share** through a client portal with public signup and emailed sign-in links, read-only share links, a REST API and an MCP server.
 
 Stack: Cloudflare Workers, Worker Assets, D1, R2, KV, Queues, Workflows, Durable Objects, Analytics Engine, Workers AI, AI Gateway. Portal in vanilla JS with GSAP.
 

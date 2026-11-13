@@ -31,7 +31,7 @@ People marked as agency staff see **every client workspace** in the workspace sw
 
 You have two options:
 
-- **Sign-in access.** Add the client's people to Cloudflare Access and give them the **viewer** role, so they can explore but not change anything. See [Logins and roles](/docs/logins-and-roles/).
+- **Sign-in access.** Set the workspace's company email domain so the client's people join as **viewers** the first time they sign in with an emailed link, or add them by hand. See [Logins and roles](/docs/logins-and-roles/).
 - **Share links.** Send a read-only link to a saved view. No sign-in needed, and it expires. See [Saved views, sharing and exports](/docs/saved-views-sharing-exports/).
 
 ## Next

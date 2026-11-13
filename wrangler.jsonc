@@ -34,11 +34,15 @@
 
   // Billing secrets (scripts/stripe-setup.mjs prints or sets them): STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
   // STRIPE_BILLING_CONFIG. Without them card billing and self-serve signup stay off.
+  // Sign-in email secrets: EMAIL_FROM (required), EMAIL_FROM_NAME, RESEND_API_KEY (fallback provider).
   // Secrets (wrangler secret put): CLOUDFLARE_ACCOUNT_ID, CF_AIG_TOKEN, OPENAI_API_KEY, ANTHROPIC_API_KEY,
   // GEMINI_API_KEY, PERPLEXITY_API_KEY, ACCESS_TEAM_DOMAIN, ACCESS_AUD, SHARE_LINK_SECRET, OTEL_EXPORTER_URL,
   // OTEL_EXPORTER_HEADERS. Any engine without a key runs on the labelled stub engine.
 
   "ai": { "binding": "AI" },
+
+  // Cloudflare Email Service: sends sign-in links from EMAIL_FROM (a domain onboarded to Email Service).
+  "send_email": [{ "name": "EMAIL" }],
 
   "d1_databases": [
     { "binding": "DB", "database_name": "geo-observability", "database_id": "d5137b7a-b736-4a24-bb70-697a1adf331c", "migrations_dir": "migrations" }
@@ -95,6 +99,7 @@
         "STRIPE_LIVE_MODE": "false"
       },
       "ai": { "binding": "AI" },
+      "send_email": [{ "name": "EMAIL" }],
       "d1_databases": [
         { "binding": "DB", "database_name": "geo-observability-staging", "database_id": "REPLACE_WITH_STAGING_D1_ID", "migrations_dir": "migrations" }
       ],

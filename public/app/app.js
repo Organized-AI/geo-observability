@@ -96,15 +96,21 @@ async function boot(force) {
   return state.boot;
 }
 
+async function signOut() {
+  try { await fetch("/auth/logout", { method: "POST", headers: { Accept: "application/json" }, credentials: "same-origin" }); } catch { /* offline: cookie stays until it expires */ }
+  setTenant(null);
+  location.assign("/");
+}
+
 function showSignedOut() {
   document.body.classList.add("is-signedout");
   clear($("main")).append(h("div", { class: "signedout" }, h("h1", null, "Sign in to continue"),
-    h("p", null, "Your session has ended or you haven't signed in yet. Reload the page to sign in again."),
-    h("div", { class: "row" }, h("button", { class: "btn btn-primary", type: "button", onclick: () => location.reload() }, "Reload"), h("a", { class: "btn", href: "/" }, "Back to the homepage"))));
+    h("p", null, "Your session has ended or you haven't signed in yet. We'll email you a sign-in link."),
+    h("div", { class: "row" }, h("a", { class: "btn btn-primary", href: "/login/" }, "Sign in"), h("a", { class: "btn", href: "/signup/" }, "Create a workspace"))));
 }
 onAuthError(() => {
   const b = $("banners");
-  if (b && !b.querySelector(".banner-auth")) b.prepend(h("div", { class: "banner banner-neg banner-auth", role: "alert" }, icon("alert"), h("span", null, "You're signed out. Reload the page to sign in again."), h("button", { class: "btn btn-sm", type: "button", onclick: () => location.reload() }, "Reload")));
+  if (b && !b.querySelector(".banner-auth")) b.prepend(h("div", { class: "banner banner-neg banner-auth", role: "alert" }, icon("alert"), h("span", null, "You're signed out."), h("a", { class: "btn btn-sm", href: "/login/" }, "Sign in")));
 });
 
 const readOnly = () => !!(state.me && (state.me.read_only || state.me.demo));
@@ -132,7 +138,9 @@ function buildShell() {
     tenantBox.append(sel);
   } else if (me.tenant) tenantBox.append(h("span", { class: "tenant-name" }, me.tenant.name));
   // user
-  clear($("user")).append(me.user ? h("span", { class: "user-chip", title: me.user.email || "" }, (me.user.name || me.user.email || "").slice(0, 40)) : "");
+  clear($("user")).append(
+    me.user ? h("span", { class: "user-chip", title: me.user.email || "" }, (me.user.name || me.user.email || "").slice(0, 40)) : "",
+    me.demo ? h("a", { class: "btn btn-sm btn-primary", href: "/signup/" }, "Sign up") : h("button", { class: "btn btn-sm btn-ghost", type: "button", onclick: signOut }, "Sign out"));
   // banners
   const b = clear($("banners"));
   if (me.demo) b.append(h("div", { class: "banner", role: "status" }, icon("info"), h("span", null, "You're exploring the demo workspace with sample data. It's read-only, so every report is open but changes are turned off.")));
