@@ -37,10 +37,10 @@
   "ai": { "binding": "AI" },
 
   "d1_databases": [
-    { "binding": "DB", "database_name": "geo-observability", "database_id": "REPLACE_WITH_D1_ID", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "geo-observability", "database_id": "d5137b7a-b736-4a24-bb70-697a1adf331c", "migrations_dir": "migrations" }
   ],
   "r2_buckets": [{ "binding": "ANSWERS", "bucket_name": "geo-observability-answers" }],
-  "kv_namespaces": [{ "binding": "CONFIG", "id": "REPLACE_WITH_KV_ID" }],
+  "kv_namespaces": [{ "binding": "CONFIG", "id": "8d42c26a723b4bae94f568b47c8f4966" }],
 
   "queues": {
     "producers": [{ "binding": "RUNS", "queue": "geo-observability-runs" }],
