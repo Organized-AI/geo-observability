@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP server: setup · GEO Observability docs</title>
+<meta name="description" content="Connect Claude Code, Claude Desktop or Cursor to the MCP server.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidenav" aria-expanded="false" aria-label="Open navigation">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="/docs/">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">GEO Observability</span>
+    <span class="brand-sub">Docs</span>
+  </a>
+  <div class="search" role="search">
+    <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <input id="docs-search" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" aria-label="Search the docs" aria-controls="search-results" aria-expanded="false">
+    <kbd class="search-kbd" aria-hidden="true">/</kbd>
+    <ul id="search-results" class="search-results" role="listbox" hidden></ul>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch colour theme" title="Switch colour theme">
+    <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <svg class="i-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidenav" class="sidenav" aria-label="Documentation">
+<div class="nav-group"><p class="nav-heading">Get started</p><ul><li><a href="/docs/">Welcome</a></li><li><a href="/docs/quickstart/">Quickstart</a></li><li><a href="/docs/metric-visibility/">Visibility</a></li><li><a href="/docs/metric-share-of-voice/">Share of voice</a></li><li><a href="/docs/metric-position/">Position</a></li><li><a href="/docs/metric-sentiment/">Sentiment</a></li><li><a href="/docs/metric-win-rate/">Win rate</a></li><li><a href="/docs/metric-cited-rate/">Cited rate</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Set up your project</p><ul><li><a href="/docs/writing-prompts/">Writing good prompts</a></li><li><a href="/docs/topics-tags-personas/">Topics, tags and personas</a></li><li><a href="/docs/competitors-and-aliases/">Competitors and aliases</a></li><li><a href="/docs/engines-and-countries/">Engines and countries</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Read your results</p><ul><li><a href="/docs/overview/">Overview</a></li><li><a href="/docs/reading-chats/">Reading chats</a></li><li><a href="/docs/sources-domains/">Sources: domains</a></li><li><a href="/docs/sources-urls-and-gaps/">Sources: URLs and gaps</a></li><li><a href="/docs/prompt-performance/">Prompt performance</a></li><li><a href="/docs/saved-views-sharing-exports/">Saved views, sharing and exports</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Brand perception</p><ul><li><a href="/docs/attributes/">Attributes</a></li><li><a href="/docs/objections/">Objections</a></li><li><a href="/docs/fact-checking/">Fact-checking</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Your project</p><ul><li><a href="/docs/brand-profile/">Brand profile</a></li><li><a href="/docs/project-settings/">Project settings and schedule</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Plans and usage</p><ul><li><a href="/docs/usage/">What counts as usage</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Improve</p><ul><li><a href="/docs/actions/">Actions</a></li><li><a href="/docs/content-briefs/">Content briefs</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Your website and traffic</p><ul><li><a href="/docs/observability-layer/">How the observability layer works</a></li><li><a href="/docs/ai-crawler-traffic/">AI crawler traffic</a></li><li><a href="/docs/ai-referrals/">AI referrals</a></li><li><a href="/docs/conversions/">Conversions</a></li><li><a href="/docs/pages-table/">The Pages table</a></li><li><a href="/docs/edge-tap-setup/">Setting up the edge tap</a></li><li><a href="/docs/tap-js-setup/">Setting up tap.js</a></li><li><a href="/docs/sgtm-conversions/">Sending conversions from sGTM</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Run transparency</p><ul><li><a href="/docs/where-numbers-come-from/">Where each number comes from</a></li><li><a href="/docs/cost-and-run-log/">Cost and run log</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Reference</p><ul><li><a href="/docs/navigation/">Navigation</a></li><li><a href="/docs/metrics-glossary/">Metrics glossary</a></li><li><a href="/docs/logins-and-roles/">Logins and roles</a></li><li><a href="/docs/engines-reference/">Engines reference</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Agencies</p><ul><li><a href="/docs/agency-getting-started/">Getting started</a></li><li><a href="/docs/agency-client-projects/">Managing client projects</a></li><li><a href="/docs/agency-limits/">Limits</a></li></ul></div>
+<div class="nav-group is-current"><p class="nav-heading">Integrations</p><ul><li><a href="/docs/api-introduction/">API: introduction</a></li><li><a href="/docs/api-authentication/">API: auth and rate limits</a></li><li><a href="/docs/api-reports/">API: reports</a></li><li><a href="/docs/api-changelog/">API: changelog</a></li><li><a href="/docs/mcp-introduction/">MCP server: introduction</a></li><li><a href="/docs/mcp-setup/" aria-current="page">MCP server: setup</a></li><li><a href="/docs/mcp-tools/">MCP server: tools</a></li></ul></div>
+  </nav>
+  <div class="nav-scrim" hidden></div>
+  <main id="main" class="content">
+    <article class="doc">
+      <p class="eyebrow">Integrations</p>
+      <h1>MCP server: setup</h1>
+<p>You&#39;ll need:</p>
+<ul>
+<li>your server URL: <code>https://&lt;your-host&gt;/mcp</code></li>
+<li>a <strong>read</strong> API key from <strong>Usage &amp; API</strong></li>
+</ul>
+<p>Replace <code>&lt;your-host&gt;</code> and <code>&lt;read key&gt;</code> in the examples below.</p>
+<h2 id="claude-code"><a class="anchor" href="#claude-code" aria-hidden="true" tabindex="-1">#</a>Claude Code</h2>
+<p>Add the server from your terminal:</p>
+<pre><code class="language-bash">claude mcp add --transport http geo-observability https://&lt;your-host&gt;/mcp \
+  --header &quot;Authorization: Bearer &lt;read key&gt;&quot;
+</code></pre>
+<p>Run <code>claude mcp list</code> to check it&#39;s connected, then ask a question in a Claude Code session.</p>
+<h2 id="claude-desktop"><a class="anchor" href="#claude-desktop" aria-hidden="true" tabindex="-1">#</a>Claude Desktop</h2>
+<p>Claude Desktop&#39;s config file starts local servers, so use the <code>mcp-remote</code> bridge to reach an HTTP server with a header. Open <strong>Settings → Developer → Edit Config</strong> and add:</p>
+<pre><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;geo-observability&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [
+        &quot;mcp-remote&quot;,
+        &quot;https://&lt;your-host&gt;/mcp&quot;,
+        &quot;--header&quot;,
+        &quot;Authorization:${AUTH_HEADER}&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;AUTH_HEADER&quot;: &quot;Bearer &lt;read key&gt;&quot;
+      }
+    }
+  }
+}
+</code></pre>
+<p>The header is passed through an environment variable to avoid problems with spaces in arguments on some systems. You need Node.js installed for <code>npx</code>. Restart Claude Desktop after saving.</p>
+<h2 id="cursor"><a class="anchor" href="#cursor" aria-hidden="true" tabindex="-1">#</a>Cursor</h2>
+<p>Add the server to <code>.cursor/mcp.json</code> in your project, or to <code>~/.cursor/mcp.json</code> to use it everywhere:</p>
+<pre><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;geo-observability&quot;: {
+      &quot;url&quot;: &quot;https://&lt;your-host&gt;/mcp&quot;,
+      &quot;headers&quot;: {
+        &quot;Authorization&quot;: &quot;Bearer &lt;read key&gt;&quot;
+      }
+    }
+  }
+}
+</code></pre>
+<p>Open Cursor&#39;s MCP settings to check the server shows as connected.</p>
+<h2 id="other-clients"><a class="anchor" href="#other-clients" aria-hidden="true" tabindex="-1">#</a>Other clients</h2>
+<p>Any MCP client that supports streamable HTTP and custom headers will work. Point it at <code>https://&lt;your-host&gt;/mcp</code> and send <code>Authorization: Bearer &lt;read key&gt;</code>.</p>
+<h2 id="keep-the-key-out-of-shared-files"><a class="anchor" href="#keep-the-key-out-of-shared-files" aria-hidden="true" tabindex="-1">#</a>Keep the key out of shared files</h2>
+<p>Project-level config files are easy to commit by accident. If you use <code>.cursor/mcp.json</code> in a shared repository, add it to <code>.gitignore</code> or use your user-level config instead.</p>
+<h2 id="troubleshooting"><a class="anchor" href="#troubleshooting" aria-hidden="true" tabindex="-1">#</a>Troubleshooting</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Check</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Unauthorised</td>
+<td>The key is a <code>read</code> key, copied in full, with <code>Bearer </code> before it</td>
+</tr>
+<tr>
+<td>No tools listed</td>
+<td>The URL ends in <code>/mcp</code> and uses <code>https</code></td>
+</tr>
+<tr>
+<td>Requests refused after heavy use</td>
+<td>The key is over 120 requests per minute. Wait and try again</td>
+</tr>
+</tbody></table>
+</div>
+
+      <nav class="pager" aria-label="Previous and next page"><a class="pager-link pager-prev" href="/docs/mcp-introduction/"><span class="pager-label">Previous</span><span class="pager-title">MCP server: introduction</span></a><a class="pager-link pager-next" href="/docs/mcp-tools/"><span class="pager-label">Next</span><span class="pager-title">MCP server: tools</span></a></nav>
+    </article>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-heading">On this page</p><ul><li><a href="#claude-code">Claude Code</a></li><li><a href="#claude-desktop">Claude Desktop</a></li><li><a href="#cursor">Cursor</a></li><li><a href="#other-clients">Other clients</a></li><li><a href="#keep-the-key-out-of-shared-files">Keep the key out of shared files</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ul>
+  </aside>
+</div>
+<footer class="footer"><p>GEO Observability by Organized AI</p></footer>
+<script src="/vendor/gsap.min.js" defer></script>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

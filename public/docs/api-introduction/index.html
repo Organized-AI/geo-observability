@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API: introduction · GEO Observability docs</title>
+<meta name="description" content="Read your projects, prompts, answers and reports over a simple HTTP API.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidenav" aria-expanded="false" aria-label="Open navigation">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="/docs/">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">GEO Observability</span>
+    <span class="brand-sub">Docs</span>
+  </a>
+  <div class="search" role="search">
+    <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <input id="docs-search" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" aria-label="Search the docs" aria-controls="search-results" aria-expanded="false">
+    <kbd class="search-kbd" aria-hidden="true">/</kbd>
+    <ul id="search-results" class="search-results" role="listbox" hidden></ul>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch colour theme" title="Switch colour theme">
+    <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <svg class="i-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidenav" class="sidenav" aria-label="Documentation">
+<div class="nav-group"><p class="nav-heading">Get started</p><ul><li><a href="/docs/">Welcome</a></li><li><a href="/docs/quickstart/">Quickstart</a></li><li><a href="/docs/metric-visibility/">Visibility</a></li><li><a href="/docs/metric-share-of-voice/">Share of voice</a></li><li><a href="/docs/metric-position/">Position</a></li><li><a href="/docs/metric-sentiment/">Sentiment</a></li><li><a href="/docs/metric-win-rate/">Win rate</a></li><li><a href="/docs/metric-cited-rate/">Cited rate</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Set up your project</p><ul><li><a href="/docs/writing-prompts/">Writing good prompts</a></li><li><a href="/docs/topics-tags-personas/">Topics, tags and personas</a></li><li><a href="/docs/competitors-and-aliases/">Competitors and aliases</a></li><li><a href="/docs/engines-and-countries/">Engines and countries</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Read your results</p><ul><li><a href="/docs/overview/">Overview</a></li><li><a href="/docs/reading-chats/">Reading chats</a></li><li><a href="/docs/sources-domains/">Sources: domains</a></li><li><a href="/docs/sources-urls-and-gaps/">Sources: URLs and gaps</a></li><li><a href="/docs/prompt-performance/">Prompt performance</a></li><li><a href="/docs/saved-views-sharing-exports/">Saved views, sharing and exports</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Brand perception</p><ul><li><a href="/docs/attributes/">Attributes</a></li><li><a href="/docs/objections/">Objections</a></li><li><a href="/docs/fact-checking/">Fact-checking</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Your project</p><ul><li><a href="/docs/brand-profile/">Brand profile</a></li><li><a href="/docs/project-settings/">Project settings and schedule</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Plans and usage</p><ul><li><a href="/docs/usage/">What counts as usage</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Improve</p><ul><li><a href="/docs/actions/">Actions</a></li><li><a href="/docs/content-briefs/">Content briefs</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Your website and traffic</p><ul><li><a href="/docs/observability-layer/">How the observability layer works</a></li><li><a href="/docs/ai-crawler-traffic/">AI crawler traffic</a></li><li><a href="/docs/ai-referrals/">AI referrals</a></li><li><a href="/docs/conversions/">Conversions</a></li><li><a href="/docs/pages-table/">The Pages table</a></li><li><a href="/docs/edge-tap-setup/">Setting up the edge tap</a></li><li><a href="/docs/tap-js-setup/">Setting up tap.js</a></li><li><a href="/docs/sgtm-conversions/">Sending conversions from sGTM</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Run transparency</p><ul><li><a href="/docs/where-numbers-come-from/">Where each number comes from</a></li><li><a href="/docs/cost-and-run-log/">Cost and run log</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Reference</p><ul><li><a href="/docs/navigation/">Navigation</a></li><li><a href="/docs/metrics-glossary/">Metrics glossary</a></li><li><a href="/docs/logins-and-roles/">Logins and roles</a></li><li><a href="/docs/engines-reference/">Engines reference</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Agencies</p><ul><li><a href="/docs/agency-getting-started/">Getting started</a></li><li><a href="/docs/agency-client-projects/">Managing client projects</a></li><li><a href="/docs/agency-limits/">Limits</a></li></ul></div>
+<div class="nav-group is-current"><p class="nav-heading">Integrations</p><ul><li><a href="/docs/api-introduction/" aria-current="page">API: introduction</a></li><li><a href="/docs/api-authentication/">API: auth and rate limits</a></li><li><a href="/docs/api-reports/">API: reports</a></li><li><a href="/docs/api-changelog/">API: changelog</a></li><li><a href="/docs/mcp-introduction/">MCP server: introduction</a></li><li><a href="/docs/mcp-setup/">MCP server: setup</a></li><li><a href="/docs/mcp-tools/">MCP server: tools</a></li></ul></div>
+  </nav>
+  <div class="nav-scrim" hidden></div>
+  <main id="main" class="content">
+    <article class="doc">
+      <p class="eyebrow">Integrations</p>
+      <h1>API: introduction</h1>
+<p>The API lets you pull GEO Observability data into your own dashboards, spreadsheets and scripts.</p>
+<h2 id="base-url"><a class="anchor" href="#base-url" aria-hidden="true" tabindex="-1">#</a>Base URL</h2>
+<pre><code class="language-text">https://&lt;your-host&gt;/api/v1
+</code></pre>
+<p>Every request needs an API key in the <code>X-API-Key</code> header. See <a href="/docs/api-authentication/">authentication and rate limits</a>.</p>
+<h2 id="endpoints"><a class="anchor" href="#endpoints" aria-hidden="true" tabindex="-1">#</a>Endpoints</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/projects</code></td>
+<td>Your projects</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/prompts?project_id=</code></td>
+<td>A project&#39;s prompts</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/chats?project_id=&amp;from=&amp;to=</code></td>
+<td>Answers in a date range</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/reports/brands</code></td>
+<td>Brand metrics, split by the dimensions you choose</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/reports/domains</code></td>
+<td>Cited domains</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/reports/urls</code></td>
+<td>Cited URLs</td>
+</tr>
+</tbody></table>
+</div>
+<p>Reports are covered in <a href="/docs/api-reports/">reports, dimensions and filters</a>.</p>
+<h2 id="conventions"><a class="anchor" href="#conventions" aria-hidden="true" tabindex="-1">#</a>Conventions</h2>
+<ul>
+<li>Bodies are JSON.</li>
+<li>Dates are <code>YYYY-MM-DD</code>, in UTC.</li>
+<li>Rates are between 0 and 1. Position is an average rank, lower is better. Sentiment is 0 to 100.</li>
+<li>Money is in <strong>micros</strong>: 1 USD = 1,000,000 micros.</li>
+<li>Errors return a 4xx or 5xx status with a body like:</li>
+</ul>
+<pre><code class="language-json">{ &quot;error&quot;: &quot;&lt;code&gt;&quot;, &quot;message&quot;: &quot;&lt;human-readable text&gt;&quot; }
+</code></pre>
+<p>Use <code>error</code> in your code and show <code>message</code> to people.</p>
+<h2 id="your-first-call"><a class="anchor" href="#your-first-call" aria-hidden="true" tabindex="-1">#</a>Your first call</h2>
+<pre><code class="language-bash">curl https://&lt;your-host&gt;/api/v1/projects \
+  -H &quot;X-API-Key: &lt;read key&gt;&quot;
+</code></pre>
+<h2 id="prefer-to-ask-in-plain-language"><a class="anchor" href="#prefer-to-ask-in-plain-language" aria-hidden="true" tabindex="-1">#</a>Prefer to ask in plain language?</h2>
+<p>The <a href="/docs/mcp-introduction/">MCP server</a> gives the same data to AI assistants such as Claude, so you can ask &quot;How did our visibility on Perplexity change this month?&quot; instead of writing code.</p>
+
+      <nav class="pager" aria-label="Previous and next page"><a class="pager-link pager-prev" href="/docs/agency-limits/"><span class="pager-label">Previous</span><span class="pager-title">Agencies: limits</span></a><a class="pager-link pager-next" href="/docs/api-authentication/"><span class="pager-label">Next</span><span class="pager-title">API: authentication and rate limits</span></a></nav>
+    </article>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-heading">On this page</p><ul><li><a href="#base-url">Base URL</a></li><li><a href="#endpoints">Endpoints</a></li><li><a href="#conventions">Conventions</a></li><li><a href="#your-first-call">Your first call</a></li><li><a href="#prefer-to-ask-in-plain-language">Prefer to ask in plain language?</a></li></ul>
+  </aside>
+</div>
+<footer class="footer"><p>GEO Observability by Organized AI</p></footer>
+<script src="/vendor/gsap.min.js" defer></script>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

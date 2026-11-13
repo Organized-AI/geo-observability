@@ -1,0 +1,5 @@
+# Default owner for everything; see CLAUDE.md for the repo map.
+*                     @jhillbht
+/migrations/          @jhillbht
+/.github/workflows/   @jhillbht
+/wrangler.jsonc       @jhillbht

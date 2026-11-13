@@ -1,0 +1,63 @@
+# PR Gate: every pull request and every push to main runs these jobs. Branch protection should require
+# only the final "PR Gate" job, which fails if any job it depends on did not succeed.
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Types, lint, tests, docs, bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Types
+        run: npm run typecheck
+      - name: Lint (browser JS syntax, no secrets, no debug statements)
+        run: npm run lint
+      - name: Tests (Workers runtime, D1 migrations applied fresh)
+        run: npm test
+      - name: Docs build (fails on broken internal links)
+        run: npm run build:docs
+      - name: Docs are committed in sync with docs-src
+        run: git diff --exit-code -- public/docs
+      - name: Worker bundles (dry run)
+        run: npx wrangler deploy --dry-run --outdir .tmp/dist
+      - name: Demo seed generates
+        run: node scripts/seed-demo.mjs > /dev/null
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294  # v5.0.0
+
+  gate:
+    name: PR Gate
+    if: always()
+    needs: [quality, dependency-review]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every required job succeeded (or was skipped)
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          for r in $RESULTS; do [ "$r" = "success" ] || [ "$r" = "skipped" ] || exit 1; done

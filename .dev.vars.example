@@ -1,0 +1,11 @@
+# Copy to .dev.vars for `npm run dev` (wrangler dev). Never commit .dev.vars.
+ENVIRONMENT=development
+DEV_AUTH_EMAIL=you@yourcompany.com
+AGENCY_EMAILS=you@yourcompany.com
+CLOUDFLARE_ACCOUNT_ID=
+CF_AIG_TOKEN=
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
+PERPLEXITY_API_KEY=
+SHARE_LINK_SECRET=change-me-to-a-long-random-string

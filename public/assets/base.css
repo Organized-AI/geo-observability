@@ -1,0 +1,176 @@
+/* Organized AI design tokens and base styles, shared by the landing page and the portal. */
+:root {
+  color-scheme: light;
+  --bg: #f6f5f1;
+  --surface: #ffffff;
+  --surface-2: #f0efe9;
+  --surface-3: #e7e5dd;
+  --border: #e2e0d8;
+  --border-strong: #cdcabe;
+  --text: #14161b;
+  --text-2: #444852;
+  --text-3: #626671;
+  --accent: #3a49d6;
+  --accent-hover: #2f3cc0;
+  --accent-ink: #ffffff;
+  --accent-soft: #e6e8fb;
+  --signal: #c6f062;
+  --signal-ink: #1b2306;
+  --pos: #15744a;
+  --pos-soft: #e0f2e7;
+  --neg: #b4381f;
+  --neg-soft: #fbe6e1;
+  --warn: #8c5f0c;
+  --warn-soft: #f8edd5;
+  --mark: #fff0a3;
+  --mark-own: #dfe2ff;
+  --series-1: #3a49d6;
+  --series-2: #d4702a;
+  --series-3: #0d968a;
+  --series-4: #c03c84;
+  --series-5: #74841a;
+  --series-6: #7656ea;
+  --series-7: #5b6370;
+  --grid: #e9e7e0;
+  --shadow: 0 1px 2px rgba(20, 22, 27, 0.04), 0 10px 30px -16px rgba(20, 22, 27, 0.18);
+  --shadow-lg: 0 24px 60px -20px rgba(20, 22, 27, 0.35);
+  --radius: 14px;
+  --radius-sm: 9px;
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0e1014;
+    --surface: #15181e;
+    --surface-2: #1b1f27;
+    --surface-3: #242934;
+    --border: #272c36;
+    --border-strong: #3a404d;
+    --text: #edeef0;
+    --text-2: #bcc0c8;
+    --text-3: #8f949e;
+    --accent: #8f9cff;
+    --accent-hover: #a7b1ff;
+    --accent-ink: #0e1014;
+    --accent-soft: #232a55;
+    --pos: #55d091;
+    --pos-soft: #143222;
+    --neg: #ff8670;
+    --neg-soft: #3a1a14;
+    --warn: #e8b64e;
+    --warn-soft: #33270e;
+    --mark: rgba(232, 196, 64, 0.3);
+    --mark-own: rgba(143, 156, 255, 0.32);
+    --series-1: #8f9cff;
+    --series-2: #f29452;
+    --series-3: #3fc8b9;
+    --series-4: #e86aad;
+    --series-5: #aec044;
+    --series-6: #a98eff;
+    --series-7: #9aa2ae;
+    --grid: #232833;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px -16px rgba(0, 0, 0, 0.6);
+    --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0e1014;
+  --surface: #15181e;
+  --surface-2: #1b1f27;
+  --surface-3: #242934;
+  --border: #272c36;
+  --border-strong: #3a404d;
+  --text: #edeef0;
+  --text-2: #bcc0c8;
+  --text-3: #8f949e;
+  --accent: #8f9cff;
+  --accent-hover: #a7b1ff;
+  --accent-ink: #0e1014;
+  --accent-soft: #232a55;
+  --pos: #55d091;
+  --pos-soft: #143222;
+  --neg: #ff8670;
+  --neg-soft: #3a1a14;
+  --warn: #e8b64e;
+  --warn-soft: #33270e;
+  --mark: rgba(232, 196, 64, 0.3);
+  --mark-own: rgba(143, 156, 255, 0.32);
+  --series-1: #8f9cff;
+  --series-2: #f29452;
+  --series-3: #3fc8b9;
+  --series-4: #e86aad;
+  --series-5: #aec044;
+  --series-6: #a98eff;
+  --series-7: #9aa2ae;
+  --grid: #232833;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px -16px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; margin: 0; }
+p { margin: 0; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:hover { color: var(--accent-hover); }
+img, svg { max-width: 100%; }
+code, pre, kbd, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+::selection { background: var(--accent-soft); }
+
+.sr-only {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.skip {
+  position: absolute; left: 12px; top: -48px; z-index: 100; padding: 8px 14px;
+  background: var(--text); color: var(--bg); border-radius: 8px; text-decoration: none;
+}
+.skip:focus { top: 12px; color: var(--bg); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 38px; padding: 0 15px; border-radius: 10px;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+  font: 500 14px/1 var(--font-body); text-decoration: none; cursor: pointer; white-space: nowrap;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn:hover { background: var(--surface-2); color: var(--text); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--accent-ink); }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--text); }
+.btn-danger { color: var(--neg); }
+.btn-sm { min-height: 30px; padding: 0 10px; font-size: 13px; border-radius: 8px; }
+.btn-lg { min-height: 48px; padding: 0 22px; font-size: 16px; border-radius: 12px; }
+.icon-btn { width: 38px; padding: 0; }
+.btn svg, .icon svg { width: 18px; height: 18px; flex: none; }
+.icon { display: inline-flex; align-items: center; }
+
+.logo { display: inline-flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-family: var(--font-display); font-weight: 600; letter-spacing: -0.01em; }
+.logo:hover { color: var(--text); }
+.logo-mark { width: 28px; height: 28px; flex: none; }
+.logo small { display: block; font: 500 11px/1.2 var(--font-body); color: var(--text-3); letter-spacing: 0.02em; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

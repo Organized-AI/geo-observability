@@ -1,0 +1,16 @@
+{
+  // Deploy one copy per client zone. Set the route to the client's domain, then:
+  //   npx wrangler secret put INGEST_KEY --config edge/wrangler.jsonc
+  //   npm run deploy:edge
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "geo-edge-tap",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-20",
+  "workers_dev": false,
+  "routes": [{ "pattern": "example.com/*", "zone_name": "example.com" }],
+  "vars": {
+    "INGEST_URL": "https://geo-observability.<your-subdomain>.workers.dev/ingest/edge",
+    "PROJECT_ID": "prj_replace_me"
+  },
+  "observability": { "enabled": true, "head_sampling_rate": 0.05 }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "geo-observability",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AI search visibility (AEO/GEO) tracking with an observability layer, on Cloudflare Workers.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "build:docs": "node scripts/build-docs.mjs",
+    "typecheck": "tsc -p .",
+    "lint": "node scripts/lint.mjs",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm run test && npm run build:docs && wrangler deploy --dry-run --outdir .tmp/dist",
+    "seed:demo": "node scripts/seed-demo.mjs > .tmp/seed-demo.sql && wrangler d1 execute geo-observability --remote --file .tmp/seed-demo.sql",
+    "seed:demo:local": "node scripts/seed-demo.mjs > .tmp/seed-demo.sql && wrangler d1 execute geo-observability --local --persist-to .wrangler/state --file .tmp/seed-demo.sql",
+    "db:migrate": "wrangler d1 migrations apply geo-observability --remote",
+    "db:migrate:local": "wrangler d1 migrations apply geo-observability --local --persist-to .wrangler/state",
+    "deploy:staging": "npm run build:docs && wrangler d1 migrations apply geo-observability-staging --remote --env staging && wrangler deploy --env staging",
+    "deploy:production": "npm run build:docs && wrangler d1 migrations apply geo-observability --remote && wrangler deploy",
+    "deploy:edge": "wrangler deploy --config edge/wrangler.jsonc",
+    "dev:offline": "node scripts/dev-offline.mjs"
+  },
+  "dependencies": {
+    "hono": "4.13.14",
+    "jose": "6.2.13"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.23.0",
+    "@cloudflare/workers-types": "5.20261027.1",
+    "gsap": "3.15.0",
+    "marked": "18.1.2",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12",
+    "wrangler": "4.154.0"
+  }
+}

@@ -1,0 +1,22 @@
+# Weekly dependency updates. The cooldown lets a new release age a week before it is proposed,
+# which keeps freshly published (and possibly compromised) versions out of the lock file.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    cooldown: { default-days: 7 }
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies]
+    commit-message: { prefix: deps }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    cooldown: { default-days: 7 }
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: [dependencies, area/ci]
+    commit-message: { prefix: ci }

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prompt performance · GEO Observability docs</title>
+<meta name="description" content="See how each prompt performs, and which engines treat you best and worst.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidenav" aria-expanded="false" aria-label="Open navigation">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="/docs/">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">GEO Observability</span>
+    <span class="brand-sub">Docs</span>
+  </a>
+  <div class="search" role="search">
+    <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <input id="docs-search" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" aria-label="Search the docs" aria-controls="search-results" aria-expanded="false">
+    <kbd class="search-kbd" aria-hidden="true">/</kbd>
+    <ul id="search-results" class="search-results" role="listbox" hidden></ul>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch colour theme" title="Switch colour theme">
+    <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <svg class="i-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidenav" class="sidenav" aria-label="Documentation">
+<div class="nav-group"><p class="nav-heading">Get started</p><ul><li><a href="/docs/">Welcome</a></li><li><a href="/docs/quickstart/">Quickstart</a></li><li><a href="/docs/metric-visibility/">Visibility</a></li><li><a href="/docs/metric-share-of-voice/">Share of voice</a></li><li><a href="/docs/metric-position/">Position</a></li><li><a href="/docs/metric-sentiment/">Sentiment</a></li><li><a href="/docs/metric-win-rate/">Win rate</a></li><li><a href="/docs/metric-cited-rate/">Cited rate</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Set up your project</p><ul><li><a href="/docs/writing-prompts/">Writing good prompts</a></li><li><a href="/docs/topics-tags-personas/">Topics, tags and personas</a></li><li><a href="/docs/competitors-and-aliases/">Competitors and aliases</a></li><li><a href="/docs/engines-and-countries/">Engines and countries</a></li></ul></div>
+<div class="nav-group is-current"><p class="nav-heading">Read your results</p><ul><li><a href="/docs/overview/">Overview</a></li><li><a href="/docs/reading-chats/">Reading chats</a></li><li><a href="/docs/sources-domains/">Sources: domains</a></li><li><a href="/docs/sources-urls-and-gaps/">Sources: URLs and gaps</a></li><li><a href="/docs/prompt-performance/" aria-current="page">Prompt performance</a></li><li><a href="/docs/saved-views-sharing-exports/">Saved views, sharing and exports</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Brand perception</p><ul><li><a href="/docs/attributes/">Attributes</a></li><li><a href="/docs/objections/">Objections</a></li><li><a href="/docs/fact-checking/">Fact-checking</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Your project</p><ul><li><a href="/docs/brand-profile/">Brand profile</a></li><li><a href="/docs/project-settings/">Project settings and schedule</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Plans and usage</p><ul><li><a href="/docs/usage/">What counts as usage</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Improve</p><ul><li><a href="/docs/actions/">Actions</a></li><li><a href="/docs/content-briefs/">Content briefs</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Your website and traffic</p><ul><li><a href="/docs/observability-layer/">How the observability layer works</a></li><li><a href="/docs/ai-crawler-traffic/">AI crawler traffic</a></li><li><a href="/docs/ai-referrals/">AI referrals</a></li><li><a href="/docs/conversions/">Conversions</a></li><li><a href="/docs/pages-table/">The Pages table</a></li><li><a href="/docs/edge-tap-setup/">Setting up the edge tap</a></li><li><a href="/docs/tap-js-setup/">Setting up tap.js</a></li><li><a href="/docs/sgtm-conversions/">Sending conversions from sGTM</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Run transparency</p><ul><li><a href="/docs/where-numbers-come-from/">Where each number comes from</a></li><li><a href="/docs/cost-and-run-log/">Cost and run log</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Reference</p><ul><li><a href="/docs/navigation/">Navigation</a></li><li><a href="/docs/metrics-glossary/">Metrics glossary</a></li><li><a href="/docs/logins-and-roles/">Logins and roles</a></li><li><a href="/docs/engines-reference/">Engines reference</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Agencies</p><ul><li><a href="/docs/agency-getting-started/">Getting started</a></li><li><a href="/docs/agency-client-projects/">Managing client projects</a></li><li><a href="/docs/agency-limits/">Limits</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Integrations</p><ul><li><a href="/docs/api-introduction/">API: introduction</a></li><li><a href="/docs/api-authentication/">API: auth and rate limits</a></li><li><a href="/docs/api-reports/">API: reports</a></li><li><a href="/docs/api-changelog/">API: changelog</a></li><li><a href="/docs/mcp-introduction/">MCP server: introduction</a></li><li><a href="/docs/mcp-setup/">MCP server: setup</a></li><li><a href="/docs/mcp-tools/">MCP server: tools</a></li></ul></div>
+  </nav>
+  <div class="nav-scrim" hidden></div>
+  <main id="main" class="content">
+    <article class="doc">
+      <p class="eyebrow">Read your results</p>
+      <h1>Prompt performance</h1>
+<p>Prompt performance puts every prompt in one table, so you can see which questions you win and which you lose.</p>
+<h2 id="the-columns"><a class="anchor" href="#the-columns" aria-hidden="true" tabindex="-1">#</a>The columns</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Prompt</td>
+<td>The question, with its topic</td>
+</tr>
+<tr>
+<td>Visibility</td>
+<td>Share of this prompt&#39;s answers that name you</td>
+</tr>
+<tr>
+<td>Position</td>
+<td>Your average rank when named</td>
+</tr>
+<tr>
+<td>Sentiment</td>
+<td>Average sentiment when named</td>
+</tr>
+<tr>
+<td>Answers</td>
+<td>How many answers this row is based on</td>
+</tr>
+<tr>
+<td>Best engine</td>
+<td>The engine where you do best for this prompt</td>
+</tr>
+<tr>
+<td>Worst engine</td>
+<td>The engine where you do worst</td>
+</tr>
+</tbody></table>
+</div>
+<p>All columns follow the filter bar.</p>
+<h2 id="how-to-use-it"><a class="anchor" href="#how-to-use-it" aria-hidden="true" tabindex="-1">#</a>How to use it</h2>
+<ul>
+<li><strong>Sort by visibility, lowest first.</strong> These are the questions where buyers don&#39;t hear about you. Read a few chats for each.</li>
+<li><strong>Look at best and worst engine together.</strong> If you&#39;re named every time on Perplexity and never on ChatGPT, compare the sources each one cited. The difference usually points to the fix.</li>
+<li><strong>Watch the answer count.</strong> One prompt on four engines in one country over seven days is 28 answers. A single answer changes visibility by almost four points.</li>
+<li><strong>Spot prompts that never move.</strong> A prompt where every brand scores zero may be worded so that assistants don&#39;t recommend brands at all. Reword it or archive it.</li>
+</ul>
+<h2 id="prompts-won-and-lost"><a class="anchor" href="#prompts-won-and-lost" aria-hidden="true" tabindex="-1">#</a>Prompts won and lost</h2>
+<p>The daily <a href="/docs/overview/#insights">insights</a> call out prompts you started or stopped appearing in compared with the previous period. They&#39;re the quickest way to spot a change without scanning the table.</p>
+
+      <nav class="pager" aria-label="Previous and next page"><a class="pager-link pager-prev" href="/docs/sources-urls-and-gaps/"><span class="pager-label">Previous</span><span class="pager-title">Sources: URLs and gaps</span></a><a class="pager-link pager-next" href="/docs/saved-views-sharing-exports/"><span class="pager-label">Next</span><span class="pager-title">Saved views, sharing and exports</span></a></nav>
+    </article>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-heading">On this page</p><ul><li><a href="#the-columns">The columns</a></li><li><a href="#how-to-use-it">How to use it</a></li><li><a href="#prompts-won-and-lost">Prompts won and lost</a></li></ul>
+  </aside>
+</div>
+<footer class="footer"><p>GEO Observability by Organized AI</p></footer>
+<script src="/vendor/gsap.min.js" defer></script>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

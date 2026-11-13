@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setting up the edge tap (Cloudflare zones) · GEO Observability docs</title>
+<meta name="description" content="Deploy the edge tap Worker on your Cloudflare zone to capture AI crawlers and referrals.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidenav" aria-expanded="false" aria-label="Open navigation">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="/docs/">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">GEO Observability</span>
+    <span class="brand-sub">Docs</span>
+  </a>
+  <div class="search" role="search">
+    <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <input id="docs-search" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" aria-label="Search the docs" aria-controls="search-results" aria-expanded="false">
+    <kbd class="search-kbd" aria-hidden="true">/</kbd>
+    <ul id="search-results" class="search-results" role="listbox" hidden></ul>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch colour theme" title="Switch colour theme">
+    <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <svg class="i-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidenav" class="sidenav" aria-label="Documentation">
+<div class="nav-group"><p class="nav-heading">Get started</p><ul><li><a href="/docs/">Welcome</a></li><li><a href="/docs/quickstart/">Quickstart</a></li><li><a href="/docs/metric-visibility/">Visibility</a></li><li><a href="/docs/metric-share-of-voice/">Share of voice</a></li><li><a href="/docs/metric-position/">Position</a></li><li><a href="/docs/metric-sentiment/">Sentiment</a></li><li><a href="/docs/metric-win-rate/">Win rate</a></li><li><a href="/docs/metric-cited-rate/">Cited rate</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Set up your project</p><ul><li><a href="/docs/writing-prompts/">Writing good prompts</a></li><li><a href="/docs/topics-tags-personas/">Topics, tags and personas</a></li><li><a href="/docs/competitors-and-aliases/">Competitors and aliases</a></li><li><a href="/docs/engines-and-countries/">Engines and countries</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Read your results</p><ul><li><a href="/docs/overview/">Overview</a></li><li><a href="/docs/reading-chats/">Reading chats</a></li><li><a href="/docs/sources-domains/">Sources: domains</a></li><li><a href="/docs/sources-urls-and-gaps/">Sources: URLs and gaps</a></li><li><a href="/docs/prompt-performance/">Prompt performance</a></li><li><a href="/docs/saved-views-sharing-exports/">Saved views, sharing and exports</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Brand perception</p><ul><li><a href="/docs/attributes/">Attributes</a></li><li><a href="/docs/objections/">Objections</a></li><li><a href="/docs/fact-checking/">Fact-checking</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Your project</p><ul><li><a href="/docs/brand-profile/">Brand profile</a></li><li><a href="/docs/project-settings/">Project settings and schedule</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Plans and usage</p><ul><li><a href="/docs/usage/">What counts as usage</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Improve</p><ul><li><a href="/docs/actions/">Actions</a></li><li><a href="/docs/content-briefs/">Content briefs</a></li></ul></div>
+<div class="nav-group is-current"><p class="nav-heading">Your website and traffic</p><ul><li><a href="/docs/observability-layer/">How the observability layer works</a></li><li><a href="/docs/ai-crawler-traffic/">AI crawler traffic</a></li><li><a href="/docs/ai-referrals/">AI referrals</a></li><li><a href="/docs/conversions/">Conversions</a></li><li><a href="/docs/pages-table/">The Pages table</a></li><li><a href="/docs/edge-tap-setup/" aria-current="page">Setting up the edge tap</a></li><li><a href="/docs/tap-js-setup/">Setting up tap.js</a></li><li><a href="/docs/sgtm-conversions/">Sending conversions from sGTM</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Run transparency</p><ul><li><a href="/docs/where-numbers-come-from/">Where each number comes from</a></li><li><a href="/docs/cost-and-run-log/">Cost and run log</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Reference</p><ul><li><a href="/docs/navigation/">Navigation</a></li><li><a href="/docs/metrics-glossary/">Metrics glossary</a></li><li><a href="/docs/logins-and-roles/">Logins and roles</a></li><li><a href="/docs/engines-reference/">Engines reference</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Agencies</p><ul><li><a href="/docs/agency-getting-started/">Getting started</a></li><li><a href="/docs/agency-client-projects/">Managing client projects</a></li><li><a href="/docs/agency-limits/">Limits</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Integrations</p><ul><li><a href="/docs/api-introduction/">API: introduction</a></li><li><a href="/docs/api-authentication/">API: auth and rate limits</a></li><li><a href="/docs/api-reports/">API: reports</a></li><li><a href="/docs/api-changelog/">API: changelog</a></li><li><a href="/docs/mcp-introduction/">MCP server: introduction</a></li><li><a href="/docs/mcp-setup/">MCP server: setup</a></li><li><a href="/docs/mcp-tools/">MCP server: tools</a></li></ul></div>
+  </nav>
+  <div class="nav-scrim" hidden></div>
+  <main id="main" class="content">
+    <article class="doc">
+      <p class="eyebrow">Your website and traffic</p>
+      <h1>Setting up the edge tap (Cloudflare zones)</h1>
+<p>The edge tap is a small Cloudflare Worker that runs on your own zone. It&#39;s the best option if your site is on Cloudflare, because it sees AI crawlers as well as visitors.</p>
+<h2 id="what-it-does"><a class="anchor" href="#what-it-does" aria-hidden="true" tabindex="-1">#</a>What it does</h2>
+<p>For every request on its route, the Worker:</p>
+<ol>
+<li>passes the request to your site untouched and returns the response as normal,</li>
+<li><strong>after</strong> the response has gone out, checks whether the request was an AI crawler or an AI-referred arrival,</li>
+<li>if so, sends a small event to <code>/ingest/edge</code> with your ingest key.</li>
+</ol>
+<p>Each event holds the time, host, path, user agent, referrer, response status, country and utm_source. It doesn&#39;t change your pages, set cookies or add anything to the response. Because the event is sent after responding, your visitors don&#39;t wait for it.</p>
+<h2 id="before-you-start"><a class="anchor" href="#before-you-start" aria-hidden="true" tabindex="-1">#</a>Before you start</h2>
+<ul>
+<li>Your site&#39;s DNS is on Cloudflare, proxied (orange cloud).</li>
+<li>You can deploy Workers in the Cloudflare account that holds the zone.</li>
+<li>You have Node.js and Wrangler, Cloudflare&#39;s command-line tool.</li>
+</ul>
+<h2 id="1-create-an-ingest-key"><a class="anchor" href="#1-create-an-ingest-key" aria-hidden="true" tabindex="-1">#</a>1. Create an ingest key</h2>
+<p>Under <strong>Usage &amp; API</strong>, create a key with scope <strong>ingest</strong>. The secret is shown once, so copy it now.</p>
+<h2 id="2-get-your-values"><a class="anchor" href="#2-get-your-values" aria-hidden="true" tabindex="-1">#</a>2. Get your values</h2>
+<p>Open the project&#39;s <strong>Tracking</strong> settings. It shows the ingest endpoint, your project id, and the variables the edge Worker needs, along with where its code lives in the repository.</p>
+<h2 id="3-add-a-route"><a class="anchor" href="#3-add-a-route" aria-hidden="true" tabindex="-1">#</a>3. Add a route</h2>
+<p>In the Worker&#39;s Wrangler config, add a route for your site. For example:</p>
+<pre><code class="language-jsonc">{
+  &quot;routes&quot;: [
+    { &quot;pattern&quot;: &quot;www.fernhill.example/*&quot;, &quot;zone_name&quot;: &quot;fernhill.example&quot; }
+  ]
+  &quot;vars&quot;: {
+    &quot;INGEST_URL&quot;: &quot;https://&lt;your-host&gt;/ingest/edge&quot;,
+    &quot;PROJECT_ID&quot;: &quot;&lt;project id&gt;&quot;
+  }
+}
+</code></pre>
+<p>Add a route for each hostname you want covered, such as the bare domain and <code>www</code>.</p>
+<h2 id="4-store-the-key-as-a-secret"><a class="anchor" href="#4-store-the-key-as-a-secret" aria-hidden="true" tabindex="-1">#</a>4. Store the key as a secret</h2>
+<p>Keep the ingest key out of your config file. The secret is called <code>INGEST_KEY</code>:</p>
+<pre><code class="language-bash">npx wrangler secret put INGEST_KEY --config edge/wrangler.jsonc
+</code></pre>
+<h2 id="5-deploy"><a class="anchor" href="#5-deploy" aria-hidden="true" tabindex="-1">#</a>5. Deploy</h2>
+<pre><code class="language-bash">npx wrangler deploy
+</code></pre>
+<h2 id="6-check-its-working"><a class="anchor" href="#6-check-its-working" aria-hidden="true" tabindex="-1">#</a>6. Check it&#39;s working</h2>
+<p>Visit a page with a link that carries an AI utm_source, for example <code>https://www.fernhill.example/?utm_source=chatgpt.com</code>. A session should then appear under <a href="/docs/ai-referrals/">AI referrals</a>. Crawler hits appear under <a href="/docs/ai-crawler-traffic/">AI crawler traffic</a> as real bots visit.</p>
+<p>Your test visit is counted like any other, so use a page you don&#39;t mind seeing in the numbers.</p>
+<h2 id="things-to-know"><a class="anchor" href="#things-to-know" aria-hidden="true" tabindex="-1">#</a>Things to know</h2>
+<ul>
+<li><strong>One Worker per route.</strong> Cloudflare runs only one Worker for a given request. If you already have a Worker on the same route, the tap won&#39;t run alongside it. You&#39;ll need to add the tap&#39;s logic to your existing Worker instead.</li>
+<li><strong>It counts as Workers usage.</strong> Every request on the route invokes the Worker, so it counts toward your Cloudflare Workers request usage.</li>
+<li><strong>Blocked requests aren&#39;t seen.</strong> Requests your security rules block before the Worker runs never reach it.</li>
+<li><strong>If our endpoint is down, your site isn&#39;t.</strong> The event is sent after your response, so a failed send doesn&#39;t affect visitors.</li>
+</ul>
+
+      <nav class="pager" aria-label="Previous and next page"><a class="pager-link pager-prev" href="/docs/pages-table/"><span class="pager-label">Previous</span><span class="pager-title">The Pages table</span></a><a class="pager-link pager-next" href="/docs/tap-js-setup/"><span class="pager-label">Next</span><span class="pager-title">Setting up tap.js (any site)</span></a></nav>
+    </article>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-heading">On this page</p><ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-start">Before you start</a></li><li><a href="#1-create-an-ingest-key">1. Create an ingest key</a></li><li><a href="#2-get-your-values">2. Get your values</a></li><li><a href="#3-add-a-route">3. Add a route</a></li><li><a href="#4-store-the-key-as-a-secret">4. Store the key as a secret</a></li><li><a href="#5-deploy">5. Deploy</a></li><li><a href="#6-check-its-working">6. Check it&#39;s working</a></li><li><a href="#things-to-know">Things to know</a></li></ul>
+  </aside>
+</div>
+<footer class="footer"><p>GEO Observability by Organized AI</p></footer>
+<script src="/vendor/gsap.min.js" defer></script>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>

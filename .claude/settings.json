@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status)", "Bash(git diff:*)", "Bash(git log:*)",
+      "Bash(npm run:*)", "Bash(npm test:*)", "Bash(npx tsc:*)", "Bash(npx vitest:*)",
+      "Bash(npx wrangler deploy --dry-run:*)", "Bash(ls:*)", "Bash(cat:*)"
+    ],
+    "ask": [
+      "Bash(git push:*)", "Bash(git commit:*)", "Bash(rm:*)", "Bash(npm install:*)",
+      "Bash(npx wrangler deploy:*)", "Bash(npx wrangler secret:*)", "Bash(npx wrangler d1 migrations apply:*--remote*)",
+      "Bash(npx wrangler d1 execute:*--remote*)"
+    ],
+    "deny": ["Bash(git push --force:*)", "Bash(git reset --hard:*)", "Bash(rm -rf /)", "Bash(sudo:*)"]
+  }
+}

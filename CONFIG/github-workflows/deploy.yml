@@ -1,0 +1,63 @@
+# GitOps: main is staging, a published release is production.
+#  - push to main  → migrate staging D1, deploy the staging Worker (environment: staging)
+#  - release published → migrate production D1, deploy production (environment: production, add required reviewers)
+# Both need repo or environment secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+# Runtime secrets (provider keys, Access, share-link secret) live in Cloudflare, set with `wrangler secret put`.
+name: deploy
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: staging or production
+        required: true
+        default: staging
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event_name == 'release' && 'production' || github.event.inputs.target || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ github.event_name == 'release' && 'production' || github.event.inputs.target || 'staging' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'release' && 'production' || github.event.inputs.target || 'staging' }}
+    env:
+      TARGET: ${{ github.event_name == 'release' && 'production' || github.event.inputs.target || 'staging' }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Verify before shipping
+        run: npm run typecheck && npm test
+      - name: Skip cleanly until Cloudflare credentials exist
+        id: creds
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Cloudflare secrets are not set for $TARGET; skipping deploy." >> "$GITHUB_STEP_SUMMARY"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Deploy staging
+        if: steps.creds.outputs.ok == 'true' && env.TARGET == 'staging'
+        run: npm run deploy:staging
+      - name: Deploy production
+        if: steps.creds.outputs.ok == 'true' && env.TARGET == 'production'
+        run: npm run deploy:production
+      - name: Smoke test
+        if: steps.creds.outputs.ok == 'true' && vars.APP_URL_STAGING != '' && env.TARGET == 'staging'
+        run: curl -fsS "${{ vars.APP_URL_STAGING }}/healthz"

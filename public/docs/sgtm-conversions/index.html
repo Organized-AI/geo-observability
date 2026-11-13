@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sending conversions from sGTM · GEO Observability docs</title>
+<meta name="description" content="Send conversion events from server-side Google Tag Manager to tie AI visits to revenue.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="/docs/docs.css">
+<script>try{var t=localStorage.getItem('docs-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+  <button class="icon-btn menu-btn" type="button" aria-controls="sidenav" aria-expanded="false" aria-label="Open navigation">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="/docs/">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">GEO Observability</span>
+    <span class="brand-sub">Docs</span>
+  </a>
+  <div class="search" role="search">
+    <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <input id="docs-search" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" aria-label="Search the docs" aria-controls="search-results" aria-expanded="false">
+    <kbd class="search-kbd" aria-hidden="true">/</kbd>
+    <ul id="search-results" class="search-results" role="listbox" hidden></ul>
+  </div>
+  <button class="icon-btn theme-btn" type="button" aria-label="Switch colour theme" title="Switch colour theme">
+    <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <svg class="i-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+  </button>
+</header>
+<div class="shell">
+  <nav id="sidenav" class="sidenav" aria-label="Documentation">
+<div class="nav-group"><p class="nav-heading">Get started</p><ul><li><a href="/docs/">Welcome</a></li><li><a href="/docs/quickstart/">Quickstart</a></li><li><a href="/docs/metric-visibility/">Visibility</a></li><li><a href="/docs/metric-share-of-voice/">Share of voice</a></li><li><a href="/docs/metric-position/">Position</a></li><li><a href="/docs/metric-sentiment/">Sentiment</a></li><li><a href="/docs/metric-win-rate/">Win rate</a></li><li><a href="/docs/metric-cited-rate/">Cited rate</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Set up your project</p><ul><li><a href="/docs/writing-prompts/">Writing good prompts</a></li><li><a href="/docs/topics-tags-personas/">Topics, tags and personas</a></li><li><a href="/docs/competitors-and-aliases/">Competitors and aliases</a></li><li><a href="/docs/engines-and-countries/">Engines and countries</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Read your results</p><ul><li><a href="/docs/overview/">Overview</a></li><li><a href="/docs/reading-chats/">Reading chats</a></li><li><a href="/docs/sources-domains/">Sources: domains</a></li><li><a href="/docs/sources-urls-and-gaps/">Sources: URLs and gaps</a></li><li><a href="/docs/prompt-performance/">Prompt performance</a></li><li><a href="/docs/saved-views-sharing-exports/">Saved views, sharing and exports</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Brand perception</p><ul><li><a href="/docs/attributes/">Attributes</a></li><li><a href="/docs/objections/">Objections</a></li><li><a href="/docs/fact-checking/">Fact-checking</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Your project</p><ul><li><a href="/docs/brand-profile/">Brand profile</a></li><li><a href="/docs/project-settings/">Project settings and schedule</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Plans and usage</p><ul><li><a href="/docs/usage/">What counts as usage</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Improve</p><ul><li><a href="/docs/actions/">Actions</a></li><li><a href="/docs/content-briefs/">Content briefs</a></li></ul></div>
+<div class="nav-group is-current"><p class="nav-heading">Your website and traffic</p><ul><li><a href="/docs/observability-layer/">How the observability layer works</a></li><li><a href="/docs/ai-crawler-traffic/">AI crawler traffic</a></li><li><a href="/docs/ai-referrals/">AI referrals</a></li><li><a href="/docs/conversions/">Conversions</a></li><li><a href="/docs/pages-table/">The Pages table</a></li><li><a href="/docs/edge-tap-setup/">Setting up the edge tap</a></li><li><a href="/docs/tap-js-setup/">Setting up tap.js</a></li><li><a href="/docs/sgtm-conversions/" aria-current="page">Sending conversions from sGTM</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Run transparency</p><ul><li><a href="/docs/where-numbers-come-from/">Where each number comes from</a></li><li><a href="/docs/cost-and-run-log/">Cost and run log</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Reference</p><ul><li><a href="/docs/navigation/">Navigation</a></li><li><a href="/docs/metrics-glossary/">Metrics glossary</a></li><li><a href="/docs/logins-and-roles/">Logins and roles</a></li><li><a href="/docs/engines-reference/">Engines reference</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Agencies</p><ul><li><a href="/docs/agency-getting-started/">Getting started</a></li><li><a href="/docs/agency-client-projects/">Managing client projects</a></li><li><a href="/docs/agency-limits/">Limits</a></li></ul></div>
+<div class="nav-group"><p class="nav-heading">Integrations</p><ul><li><a href="/docs/api-introduction/">API: introduction</a></li><li><a href="/docs/api-authentication/">API: auth and rate limits</a></li><li><a href="/docs/api-reports/">API: reports</a></li><li><a href="/docs/api-changelog/">API: changelog</a></li><li><a href="/docs/mcp-introduction/">MCP server: introduction</a></li><li><a href="/docs/mcp-setup/">MCP server: setup</a></li><li><a href="/docs/mcp-tools/">MCP server: tools</a></li></ul></div>
+  </nav>
+  <div class="nav-scrim" hidden></div>
+  <main id="main" class="content">
+    <article class="doc">
+      <p class="eyebrow">Your website and traffic</p>
+      <h1>Sending conversions from sGTM</h1>
+<p>If you run server-side Google Tag Manager (sGTM), you&#39;re already processing your conversions on a server. Sending a copy here is one more tag.</p>
+<h2 id="what-youll-send"><a class="anchor" href="#what-youll-send" aria-hidden="true" tabindex="-1">#</a>What you&#39;ll send</h2>
+<p><code>POST https://&lt;your-host&gt;/ingest/conversion</code> with your ingest key in the <code>X-Ingest-Key</code> header and a JSON body:</p>
+<pre><code class="language-json">{
+  &quot;project_id&quot;: &quot;&lt;project id&gt;&quot;,
+  &quot;events&quot;: [
+    {
+      &quot;event_id&quot;: &quot;order-10482&quot;,
+      &quot;event_name&quot;: &quot;purchase&quot;,
+      &quot;ts&quot;: &quot;2026-11-12T15:04:05Z&quot;,
+      &quot;landing_path&quot;: &quot;/subscriptions/light-roast&quot;,
+      &quot;utm_source&quot;: &quot;chatgpt.com&quot;,
+      &quot;referrer&quot;: &quot;https://chatgpt.com/&quot;,
+      &quot;value&quot;: 54.0,
+      &quot;currency&quot;: &quot;USD&quot;,
+      &quot;source&quot;: &quot;sgtm&quot;
+    }
+  ]
+}
+</code></pre>
+<p>The exact endpoint and headers for your project are on the <strong>Tracking</strong> settings page.</p>
+<h2 id="1-create-an-ingest-key"><a class="anchor" href="#1-create-an-ingest-key" aria-hidden="true" tabindex="-1">#</a>1. Create an ingest key</h2>
+<p>Under <strong>Usage &amp; API</strong>, create a key with scope <strong>ingest</strong>. Copy the secret, as it&#39;s shown only once.</p>
+<h2 id="2-capture-the-landing-page-and-referrer"><a class="anchor" href="#2-capture-the-landing-page-and-referrer" aria-hidden="true" tabindex="-1">#</a>2. Capture the landing page and referrer</h2>
+<p>A conversion usually happens pages after the visit started. To link it back, you need to know where the visit began. Record the <strong>landing path</strong>, <strong>referrer</strong> and <strong>utm_source</strong> when the session starts, for example in a first-party cookie set by your web or server container, and read them back when the conversion fires.</p>
+<h2 id="3-add-an-http-request-tag"><a class="anchor" href="#3-add-an-http-request-tag" aria-hidden="true" tabindex="-1">#</a>3. Add an HTTP request tag</h2>
+<p>In your server container, add a tag that sends a JSON POST request. You can use a JSON HTTP request tag template from the community gallery, or a custom template built on sGTM&#39;s <code>sendHttpRequest</code> API.</p>
+<ul>
+<li><strong>URL</strong>: the ingest endpoint from the Tracking page.</li>
+<li><strong>Headers</strong>: <code>Content-Type: application/json</code> and <code>X-Ingest-Key: &lt;ingest key&gt;</code>.</li>
+<li><strong>Body</strong>: the JSON above, filled from your event data and the values you captured in step 2.</li>
+<li><strong>Trigger</strong>: your conversion events, such as <code>purchase</code> or <code>generate_lead</code>.</li>
+</ul>
+<h2 id="4-use-a-stable-eventid"><a class="anchor" href="#4-use-a-stable-eventid" aria-hidden="true" tabindex="-1">#</a>4. Use a stable event_id</h2>
+<p>Set <code>event_id</code> to something unique and stable, such as the order number or the same event id you send to Meta or Google Ads. Duplicates with the same <code>event_id</code> are counted once, so retries and double-fires don&#39;t inflate your numbers.</p>
+<h2 id="5-test-it"><a class="anchor" href="#5-test-it" aria-hidden="true" tabindex="-1">#</a>5. Test it</h2>
+<p>Send a test event with curl:</p>
+<pre><code class="language-bash">curl -X POST &quot;https://&lt;your-host&gt;/ingest/conversion&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -H &quot;X-Ingest-Key: &lt;ingest key&gt;&quot; \
+  -d &#39;{&quot;project_id&quot;:&quot;&lt;project id&gt;&quot;,&quot;events&quot;:[{&quot;event_id&quot;:&quot;test-001&quot;,&quot;event_name&quot;:&quot;purchase&quot;,&quot;ts&quot;:&quot;2026-11-12T15:04:05Z&quot;,&quot;landing_path&quot;:&quot;/&quot;,&quot;utm_source&quot;:&quot;chatgpt.com&quot;,&quot;value&quot;:1,&quot;currency&quot;:&quot;USD&quot;,&quot;source&quot;:&quot;sgtm&quot;}]}&#39;
+</code></pre>
+<p>A test event is counted like a real one, so use a tiny value and a clearly named id.</p>
+<h2 id="other-sources"><a class="anchor" href="#other-sources" aria-hidden="true" tabindex="-1">#</a>Other sources</h2>
+<p>The same endpoint takes events from other server-side setups. Set <code>source</code> to <code>ga4</code>, <code>google_ads</code>, <code>meta</code>, <code>tiktok</code> or <code>shopify</code> to say where each one came from. See <a href="/docs/conversions/">Conversions</a>.</p>
+
+      <nav class="pager" aria-label="Previous and next page"><a class="pager-link pager-prev" href="/docs/tap-js-setup/"><span class="pager-label">Previous</span><span class="pager-title">Setting up tap.js (any site)</span></a><a class="pager-link pager-next" href="/docs/where-numbers-come-from/"><span class="pager-label">Next</span><span class="pager-title">Where each number comes from</span></a></nav>
+    </article>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-heading">On this page</p><ul><li><a href="#what-youll-send">What you&#39;ll send</a></li><li><a href="#1-create-an-ingest-key">1. Create an ingest key</a></li><li><a href="#2-capture-the-landing-page-and-referrer">2. Capture the landing page and referrer</a></li><li><a href="#3-add-an-http-request-tag">3. Add an HTTP request tag</a></li><li><a href="#4-use-a-stable-eventid">4. Use a stable event_id</a></li><li><a href="#5-test-it">5. Test it</a></li><li><a href="#other-sources">Other sources</a></li></ul>
+  </aside>
+</div>
+<footer class="footer"><p>GEO Observability by Organized AI</p></footer>
+<script src="/vendor/gsap.min.js" defer></script>
+<script src="/docs/docs.js" defer></script>
+</body>
+</html>
