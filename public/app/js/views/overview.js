@@ -52,7 +52,8 @@ function kpiTile(key, label, kind, help, k, sparkVals) {
   let delta = null;
   if (isNumber(value) && isNumber(prev)) {
     const d = value - prev;
-    const eps = kind === "rate" ? 0.0005 : kind === "count" ? 0.5 : 0.05;
+    // Flat when the change rounds to zero at the precision shown, so a tile never reads "−0".
+    const eps = kind === "rate" ? 0.0005 : kind === "count" || kind === "score" ? 0.5 : 0.05;
     const flat = Math.abs(d) < eps;
     const good = kind === "position" ? d < 0 : d > 0;
     const txt = kind === "rate" ? fmt.pts(d) : kind === "count" ? `${fmt.signed(d, 0)}${prev ? ` (${fmt.signed((d / prev) * 100, 0)}%)` : ""}` : fmt.signed(d, kind === "score" ? 0 : 1);

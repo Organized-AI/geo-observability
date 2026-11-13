@@ -69,7 +69,10 @@ const decodeEntities = (s) =>
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
     .replace(/&amp;/g, '&');
 
-const stripTags = (html) => decodeEntities(html.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+// Inline tags (links, code, emphasis) are removed without a gap so "the <a>edge tap</a>, because" stays
+// "the edge tap, because"; block tags become a space so paragraphs don't run together.
+const INLINE = /<\/?(a|code|strong|em|b|i|span|kbd|mark|abbr|sup|sub)\b[^>]*>/gi;
+const stripTags = (html) => decodeEntities(html.replace(INLINE, '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').replace(/\s+([,.;:!?)])/g, '$1').trim();
 
 function slugify(text) {
   return String(text)

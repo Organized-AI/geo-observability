@@ -67,12 +67,24 @@ export function ruleSentiment(snippet: string): number {
 }
 
 /**
+ * Blanks out places where the answer repeats the prompt word for word ("Here's what I found for 'Is Acme
+ * good?'"), so a brand named in a branded prompt only counts when the answer itself brings it up.
+ * Characters are replaced with spaces, so indexes and snippets elsewhere stay where they were.
+ */
+export function maskPromptEcho(text: string, prompt?: string | null): string {
+  const p = plainText(prompt ?? "").trim().replace(/[?.!]+$/, "").trim();
+  if (p.length < 8) return text;
+  const re = new RegExp(esc(p).replace(/\s+/g, "\\s+"), "giu");
+  return text.replace(re, (m) => " ".repeat(m.length));
+}
+
+/**
  * Finds tracked brands in an answer. Rank follows the order of first appearance, which is how a reader
  * meets them. Deterministic on purpose: mention and position are the numbers clients compare most, so they
- * shouldn't move when a model has a different day.
+ * shouldn't move when a model has a different day. Pass the prompt so a restated question isn't counted.
  */
-export function findMentions(answer: string, brands: BrandMatcher[]): FoundMention[] {
-  const text = plainText(answer);
+export function findMentions(answer: string, brands: BrandMatcher[], prompt?: string | null): FoundMention[] {
+  const text = maskPromptEcho(plainText(answer), prompt);
   const hits: Omit<FoundMention, "rank">[] = [];
   for (const b of brands) {
     let best = -1;

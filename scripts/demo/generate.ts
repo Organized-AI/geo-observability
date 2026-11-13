@@ -92,7 +92,7 @@ export function generate(days = 30, endDay = new Date().toISOString().slice(0, 1
         const ctxBrands = brands.map((b) => ({ name: b.name, domains: b.domains, isOwn: b.isOwn && rng(runId)() < 0.55 + boost * 0.3 }));
         const ans = stubAnswer(engine, text, { env: {} as never, tenantId: T, projectId: P, promptId: `pr_demo_${pi}`, runId, country, language: "en", brands: ctxBrands });
         const fixedText = ans.text;
-        const mentions = findMentions(fixedText, brands);
+        const mentions = findMentions(fixedText, brands, text);
         const cost = 1500 + Math.floor(rng(`${runId}c`)() * 4000);
         out.push(
           `INSERT INTO runs (id, tenant_id, project_id, prompt_id, engine, model, country, run_date, status, channel, cost_micros, input_tokens, output_tokens, latency_ms, answer_excerpt, judge, finished_at) VALUES (${q(runId)}, '${T}', '${P}', 'pr_demo_${pi}', '${engine}', ${q(`stub-${engine}`)}, '${country}', '${day}', 'done', 'stub', ${cost}, 0, 0, ${800 + Math.floor(rng(runId)() * 4000)}, ${q(fixedText)}, 'rules', '${day}T06:10:00Z');`,

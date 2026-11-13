@@ -45,6 +45,12 @@ const SOURCES = [
   "https://www.pcmag.com/picks/",
 ];
 
+const OPENERS = [
+  "Here are some options people commonly consider:",
+  "A few tools come up again and again for this:",
+  "These are the options most often recommended:",
+];
+
 // Each engine leans a little differently so the demo shows per-engine variation.
 const ENGINE_BIAS: Record<EngineId, number> = { chatgpt: 0.62, claude: 0.48, gemini: 0.55, perplexity: 0.7, alexa: 0 };
 
@@ -65,7 +71,7 @@ export function stubAnswer(engine: EngineId, prompt: string, ctx: EngineContext)
   }
 
   const lines: string[] = [];
-  lines.push(`Here are some options people commonly consider for "${prompt.replace(/\?$/, "")}":`);
+  lines.push(OPENERS[Math.floor(r() * OPENERS.length)]);
   lines.push("");
   const citations: EngineAnswer["citations"] = [];
   picked.forEach((b, i) => {

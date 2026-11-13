@@ -12,6 +12,8 @@ import { exportRunSpan } from "../lib/otel";
 /** The part of an engine answer a Workflow step returns (the raw provider body stays in R2). */
 export interface StoredAnswer extends Omit<EngineAnswer, "raw"> {
   r2Key: string;
+  /** The prompt as asked, so scoring can ignore the answer restating it. */
+  prompt?: string;
 }
 
 export async function monthSpendMicros(tdb: TenantDB, month = nowIso().slice(0, 7)): Promise<number> {
@@ -83,7 +85,7 @@ export async function askAndStore(env: Env, job: RunJob): Promise<StoredAnswer> 
     { httpMetadata: { contentType: "application/json" }, customMetadata: { tenant: job.tenantId, run: job.runId } },
   );
   const { raw: _raw, ...rest } = answer;
-  return { ...rest, r2Key };
+  return { ...rest, r2Key, prompt: prompt.text };
 }
 
 export interface Scored {
@@ -96,7 +98,7 @@ export interface Scored {
 export async function score(env: Env, job: RunJob, answer: StoredAnswer, brandsIn?: BrandInfo[]): Promise<Scored> {
   const tdb = new TenantDB(env.DB, job.tenantId);
   const brands = brandsIn ?? (await loadBrands(tdb, job.projectId));
-  const mentions = findMentions(answer.text, brands);
+  const mentions = findMentions(answer.text, brands, answer.prompt);
   if (answer.channel === "stub") return { mentions, judge: null, judgeMode: "rules" };
   const own = brands.find((b) => b.isOwn) ?? null;
   const profile = await tdb.first<{ facts: string | null }>("SELECT facts FROM brand_profiles WHERE tenant_id = ?1 AND project_id = ?2", job.projectId);

@@ -5,6 +5,10 @@ import { staggerRows, countUp } from "../anim.js";
 import { lineChart, legend, bars, donut, pivot, seriesColor } from "../charts.js";
 import { pageHead, needProject } from "./common.js";
 
+// Referral ids from the classifier, shown with the names people know.
+const ASSISTANT_LABELS = { chatgpt: "ChatGPT", claude: "Claude", perplexity: "Perplexity", gemini: "Gemini", copilot: "Copilot", meta_ai: "Meta AI", grok: "Grok", deepseek: "DeepSeek", mistral: "Mistral", you: "You.com", phind: "Phind", other_ai: "Other AI" };
+const assistantLabel = (id) => ASSISTANT_LABELS[id] || id;
+
 const BOT_TYPES = [["training", "Training", "var(--series-2)"], ["search", "Search", "var(--series-3)"], ["retrieval", "Retrieval", "var(--series-1)"]];
 const botTypeKey = (t) => { const k = String(t || "").toLowerCase(); return k.startsWith("train") ? "training" : k.startsWith("search") ? "search" : k.startsWith("retriev") || k.startsWith("user") ? "retrieval" : k || "other"; };
 
@@ -116,7 +120,7 @@ export default async function website(ctx) {
   const refTrend = h("div", { class: "chart-host" });
   const refCard = card("AI referrals", {},
     byAssistant.length ? table([
-      { label: "Assistant", render: (r) => h("span", { class: "brand-cell" }, h("span", { class: "dot", style: { background: seriesColor(byAssistant.indexOf(r)) } }), r.assistant) },
+      { label: "Assistant", render: (r) => h("span", { class: "brand-cell" }, h("span", { class: "dot", style: { background: seriesColor(byAssistant.indexOf(r)) } }), assistantLabel(r.assistant)) },
       { label: "Sessions", num: true, render: (r) => fmt.int(r.sessions) },
       { label: "Conversions", num: true, render: (r) => fmt.int(r.conversions) },
       { label: "Conv. rate", num: true, render: (r) => (r.sessions ? fmt.pct(r.conversions / r.sessions) : "–") },
@@ -126,7 +130,7 @@ export default async function website(ctx) {
   body.append(refCard);
   const rTrend = (referrals && referrals.trend) || [];
   if (rTrend.length) {
-    const { days, series } = pivot(rTrend, "assistant", "sessions", Object.fromEntries(byAssistant.map((a) => [a.assistant, a.assistant])));
+    const { days, series } = pivot(rTrend, "assistant", "sessions", Object.fromEntries(byAssistant.map((a) => [a.assistant, assistantLabel(a.assistant)])));
     const order = byAssistant.map((a) => a.assistant);
     series.forEach((s, i) => { const j = order.indexOf(s.name); s.color = seriesColor(j >= 0 ? j : i); });
     requestAnimationFrame(() => { lineChart(refTrend, { series, days, yFormat: (v) => fmt.int(v), label: "AI referral sessions by day and assistant", height: 220 }); refTrend.after(legend(series)); });

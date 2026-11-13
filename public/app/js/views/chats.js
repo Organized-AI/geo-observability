@@ -4,6 +4,9 @@ import { api } from "../api.js";
 import { reveal } from "../anim.js";
 import { pageHead, engineBadge, channelBadge, sentimentBadge, verdictBadge, brandsFor, needProject } from "./common.js";
 
+// Excerpts are raw model text; drop Markdown markers so "**Acme**" reads as "Acme" in the list.
+const plainExcerpt = (t) => String(t).replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/[*_`#>]+/g, "").replace(/\s+/g, " ").trim();
+
 function chatRow(ctx, c) {
   const mentions = (c.mentions || []).slice().sort((a, b) => (a.rank || 99) - (b.rank || 99));
   return h("li", null, h("button", { type: "button", class: "chat-row", onclick: () => openChat(ctx, c.run_id) },
@@ -11,7 +14,7 @@ function chatRow(ctx, c) {
       c.country ? h("span", { class: "muted small" }, c.country) : null, h("span", { class: "muted small" }, fmt.date(c.run_date)),
       h("span", { class: "muted small chat-cites" }, plural(c.citations_count, "citation"))),
     h("span", { class: "chat-prompt" }, c.prompt),
-    c.excerpt ? h("span", { class: "chat-excerpt clamp-2" }, c.excerpt) : null,
+    c.excerpt ? h("span", { class: "chat-excerpt clamp-2" }, plainExcerpt(c.excerpt)) : null,
     h("span", { class: "chat-mentions" }, mentions.length
       ? mentions.slice(0, 5).map((m) => h("span", { class: "mention-chip" }, isNumber(m.rank) ? h("span", { class: "num" }, `#${m.rank}`) : null, m.brand_name))
       : h("span", { class: "muted small" }, "No tracked brands named"))));

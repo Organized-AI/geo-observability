@@ -29,6 +29,18 @@ describe("mention matching", () => {
     expect(findMentions("Acmeville and GlobexCorp are towns.", brands)).toEqual([]);
   });
 
+  it("ignores a brand that only appears where the answer restates the prompt", () => {
+    const answer = 'Here is what I found for "Is Acme good for small teams":\n1. **Globex** is reliable.\n2. Initech is pricey.';
+    const m = findMentions(answer, brands, "Is Acme good for small teams?");
+    expect(m.map((x) => [x.brandId, x.rank])).toEqual([
+      ["b1", 1],
+      ["b2", 2],
+    ]);
+    // Still counted when the answer names it on its own.
+    const m2 = findMentions(answer + "\n3. Acme is easy to use.", brands, "Is Acme good for small teams?");
+    expect(m2.find((x) => x.brandId === "own")?.rank).toBe(3);
+  });
+
   it("uses a custom pattern", () => {
     const m = findMentions("Try ACME-Pro today", [{ ...brands[0], aliases: [], regex: "acme-?pro" }]);
     expect(m[0]?.brandId).toBe("own");
