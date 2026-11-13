@@ -252,8 +252,8 @@ function wizard(ctx, host, startProject) {
     body.append(box);
     let save = null;
     load(box, () => Promise.all([api(`projects/${project.id}/models`), api(`projects/${project.id}/countries`).catch(() => ({ countries: [] }))]), ([models, c]) => {
-      const e = enginesEditor(models || []);
-      const k = countriesEditor((c && c.countries) || []);
+      const e = enginesEditor(models || [], planLimit(ctx, "models"));
+      const k = countriesEditor((c && c.countries) || [], planLimit(ctx, "countries"));
       box.append(h("h3", { class: "sub-title" }, "Engines"), e.el, h("h3", { class: "sub-title" }, "Countries"), k.el);
       save = async () => {
         const engines = e.value(), countries = k.value();
@@ -301,23 +301,42 @@ function wizard(ctx, host, startProject) {
 }
 
 // ---------- editors ----------
-function enginesEditor(models) {
-  const el = h("div", { class: "check-list" }, models.map((m) => {
+const planLimit = (ctx, key) => { const n = ctx && ctx.me && ctx.me.tenant && ctx.me.tenant.limits ? Number(ctx.me.tenant.limits[key]) : 0; return Number.isFinite(n) && n > 0 ? n : 0; };
+
+/** Engine checkboxes. With a plan limit, boxes beyond it are disabled and the limit is said up front. */
+function enginesEditor(models, limit = 0) {
+  const note = limit ? h("p", { class: "muted small" }, `Your plan includes up to ${limit} engine${limit === 1 ? "" : "s"} per project.`) : null;
+  const list = h("div", { class: "check-list" }, models.map((m) => {
     const off = m.available === false || m.channel === "unavailable";
     return h("label", { class: ["check-row", off && "is-disabled"] },
-      h("input", { type: "checkbox", value: m.engine, checked: !!m.enabled && !off, disabled: off }),
+      h("input", { type: "checkbox", value: m.engine, checked: !!m.enabled && !off, disabled: off, "data-off": off ? "1" : null }),
       h("span", null, m.label || m.engine), channelBadge(m.channel), m.note ? h("small", { class: "muted" }, m.note) : null);
   }));
+  const boxes = () => Array.from(list.querySelectorAll("input"));
+  const enforce = () => {
+    if (!limit) return;
+    const checked = boxes().filter((i) => i.checked);
+    checked.slice(limit).forEach((i) => { i.checked = false; });
+    const full = boxes().filter((i) => i.checked).length >= limit;
+    boxes().forEach((i) => {
+      if (i.dataset.off) return;
+      i.disabled = full && !i.checked;
+      i.closest(".check-row")?.classList.toggle("is-disabled", i.disabled);
+    });
+  };
+  list.addEventListener("change", enforce);
+  enforce();
+  const el = h("div", { class: "stack-sm" }, note, list);
   if (!models.length) el.append(h("p", { class: "muted" }, "No engines are configured for this workspace."));
-  return { el, value: () => Array.from(el.querySelectorAll("input:checked")).map((i) => i.value) };
+  return { el, value: () => boxes().filter((i) => i.checked).map((i) => i.value) };
 }
 
-function countriesEditor(list) {
+function countriesEditor(list, limit = 0) {
   const set = new Set(list.map((c) => String(c).toUpperCase()));
   const chips = h("div", { class: "chips" });
   const draw = () => clear(chips).append(...[...set].map((c) => h("span", { class: "chip chip-static" }, c, h("button", { type: "button", class: "chip-x", "aria-label": `Remove ${c}`, onclick: () => { set.delete(c); draw(); } }, icon("close")))));
   const input = h("input", { class: "input input-sm", maxlength: 2, placeholder: "GB", "aria-label": "Country code", style: { textTransform: "uppercase", width: "80px" } });
-  const add = () => { const v = input.value.trim().toUpperCase(); if (/^[A-Z]{2}$/.test(v)) { set.add(v); input.value = ""; draw(); } else toast("Use a two-letter country code, like GB.", "error"); };
+  const add = () => { const v = input.value.trim().toUpperCase(); if (/^[A-Z]{2}$/.test(v)) { if (limit && !set.has(v) && set.size >= limit) { toast(`Your plan covers up to ${limit} countr${limit === 1 ? "y" : "ies"}. Remove one to add another.`, "error"); return; } set.add(v); input.value = ""; draw(); } else toast("Use a two-letter country code, like GB.", "error"); };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); add(); } });
   draw();
   return { el: h("div", { class: "stack-sm" }, chips, h("div", { class: "row" }, input, h("button", { type: "button", class: "btn btn-sm", onclick: add }, icon("plus"), "Add country"))), value: () => [...set] };
@@ -352,7 +371,7 @@ function projectTab(ctx, box) {
 
 function enginesTab(ctx, box) {
   load(box, () => api(`projects/${ctx.pid}/models`), (models) => {
-    const e = enginesEditor(Array.isArray(models) ? models : []);
+    const e = enginesEditor(Array.isArray(models) ? models : [], planLimit(ctx, "models"));
     if (ctx.readOnly) e.el.querySelectorAll("input").forEach((i) => { i.disabled = true; });
     box.append(h("p", { class: "muted" }, "Engines marked as stub run on a labelled stand-in until a live API key is configured, so their answers aren't real model output."), e.el,
       h("div", { class: "form-actions", "data-write": "" }, h("button", { type: "button", class: "btn btn-primary", onclick: async () => {
@@ -367,7 +386,7 @@ function countriesTab(ctx, box) {
   load(box, () => api(`projects/${ctx.pid}/countries`), (r) => {
     const list = (r && r.countries) || [];
     if (ctx.readOnly) { box.append(list.length ? h("div", { class: "chips" }, list.map((c) => h("span", { class: "chip chip-static" }, c))) : empty("No countries set")); return; }
-    const k = countriesEditor(list);
+    const k = countriesEditor(list, planLimit(ctx, "countries"));
     box.append(h("p", { class: "muted" }, "Prompts run once per country, so answers reflect what buyers in each market see."), k.el,
       h("div", { class: "form-actions" }, h("button", { type: "button", class: "btn btn-primary", onclick: async () => {
         const countries = k.value();

@@ -109,6 +109,17 @@ describe("onboarding to first numbers", () => {
   });
 });
 
+describe("plan limits", () => {
+  it("refuses more engines than the plan allows with a message the portal can show", async () => {
+    const r = await call("PUT", `/api/projects/${projectA}/models`, { engines: ["chatgpt", "claude", "gemini", "perplexity"] }, "acme");
+    expect(r.status).toBe(403);
+    expect(r.json.error).toBe("limit");
+    expect(r.json.message).toMatch(/up to 3 engines/);
+    const ok = await call("PUT", `/api/projects/${projectA}/models`, { engines: ["chatgpt", "claude", "gemini"] }, "acme");
+    expect(ok.status).toBe(200);
+  });
+});
+
 describe("tenant isolation", () => {
   it("TenantDB refuses unscoped queries", async () => {
     const tdb = new TenantDB(env.DB, tenantA);

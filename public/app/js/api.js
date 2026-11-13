@@ -14,7 +14,7 @@ function messageFor(status, code, serverMsg) {
   if (status === 401) return "You're signed out. Sign in again to carry on.";
   if (status === 403 && code === "read_only") return "This workspace is read-only, so changes are turned off.";
   if (status === 403 && code === "billing_locked") return serverMsg || "Changes are paused until billing is sorted out.";
-  if (status === 403) return "You don't have access to this.";
+  if (status === 403) return code === "forbidden" || !serverMsg ? "You don't have access to this." : serverMsg;
   if (status === 404) return serverMsg || "That item wasn't found.";
   if (status === 429) return "Too many requests. Wait a little and try again.";
   if (status >= 500) return `The server had a problem (${status}). Try again.`;
