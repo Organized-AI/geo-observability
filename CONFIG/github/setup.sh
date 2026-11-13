@@ -38,6 +38,7 @@ echo "Rulesets on $REPO"
 for file in ruleset-main.json ruleset-tags.json; do
   name=$(node -p "require('./$file').name")
   id=$(gh api "repos/$REPO/rulesets" --jq ".[] | select(.name == \"$name\") | .id" 2>/dev/null || true)
+  case "$id" in *[!0-9]*) id="" ;; esac   # an error body is not an id
   if [ -n "$id" ]; then
     gh api -X PUT "repos/$REPO/rulesets/$id" --input "$file" --silent && ok "ruleset \"$name\" updated"
   elif gh api -X POST "repos/$REPO/rulesets" --input "$file" --silent 2>/dev/null; then
