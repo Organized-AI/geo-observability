@@ -22,7 +22,8 @@
     "deploy:staging": "npm run build:docs && wrangler d1 migrations apply geo-observability-staging --remote --env staging && wrangler deploy --env staging",
     "deploy:production": "npm run build:docs && wrangler d1 migrations apply geo-observability --remote && wrangler deploy",
     "deploy:edge": "wrangler deploy --config edge/wrangler.jsonc",
-    "dev:offline": "node scripts/dev-offline.mjs"
+    "dev:offline": "node scripts/dev-offline.mjs",
+    "stripe:setup": "node scripts/stripe-setup.mjs"
   },
   "dependencies": {
     "hono": "4.13.14",

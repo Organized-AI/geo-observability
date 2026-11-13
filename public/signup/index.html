@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create a workspace · GEO Observability</title>
+  <meta name="description" content="Create a GEO Observability workspace and add a card to start tracking.">
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233a49d6'/%3E%3Crect x='7' y='7' width='8' height='8' rx='2' fill='%23fff'/%3E%3Crect x='17' y='7' width='8' height='8' rx='2' fill='%23fff' opacity='.55'/%3E%3Crect x='7' y='17' width='8' height='8' rx='2' fill='%23fff' opacity='.55'/%3E%3Crect x='17' y='17' width='8' height='8' rx='2' fill='%23c6f062'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="/assets/base.css">
+  <script src="/assets/theme.js"></script>
+  <style>
+    body { background: var(--bg); color: var(--text); min-height: 100vh; }
+    .su { max-width: 520px; margin: 0 auto; padding: 48px 16px 64px; }
+    .su-logo { display: inline-flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-family: var(--font-display); font-weight: 600; }
+    .su-logo svg { width: 28px; height: 28px; }
+    .su h1 { font-family: var(--font-display); font-size: clamp(28px, 6vw, 36px); line-height: 1.1; margin: 32px 0 10px; text-wrap: balance; }
+    .su-lede { color: var(--text-2, var(--text)); opacity: .8; margin: 0 0 24px; }
+    .su-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow); }
+    .su-field { display: grid; gap: 6px; margin-bottom: 16px; }
+    .su-field label { font-weight: 500; font-size: 14px; }
+    .su-field small { opacity: .7; font-size: 13px; }
+    .su-input { font: inherit; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); width: 100%; box-sizing: border-box; }
+    .su-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .su-steps { margin: 20px 0 0; padding-left: 20px; font-size: 14px; opacity: .85; }
+    .su-steps li { margin: 4px 0; }
+    .su-note { border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 16px; font-size: 14px; }
+    .su-note[data-tone="warn"] { background: var(--warn-soft); color: var(--warn); }
+    .su-note[data-tone="neg"] { background: var(--neg-soft); color: var(--neg); }
+    .su-note[data-tone="info"] { background: var(--accent-soft); color: var(--text); }
+    .su-who { font-size: 13px; opacity: .75; margin-top: 14px; }
+    .su-list { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 8px; }
+    .su-list a { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); text-decoration: none; }
+    .su-list a:hover, .su-list a:focus-visible { border-color: var(--accent); }
+    .su-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main class="su" id="main">
+    <a class="su-logo" href="/" aria-label="GEO Observability by Organized AI, homepage">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><rect x="7" y="7" width="8" height="8" rx="2" fill="var(--accent-ink)"/><rect x="17" y="7" width="8" height="8" rx="2" fill="var(--accent-ink)" opacity=".55"/><rect x="7" y="17" width="8" height="8" rx="2" fill="var(--accent-ink)" opacity=".55"/><rect x="17" y="17" width="8" height="8" rx="2" fill="var(--signal)"/></svg>
+      <span>GEO Observability</span>
+    </a>
+    <h1 data-in>Create your workspace</h1>
+    <p class="su-lede" data-in>Name your workspace, then add a card with Stripe. The plan fee starts with your subscription, and usage is billed as answers run.</p>
+
+    <div class="su-card" data-in>
+      <div id="note" class="su-note" role="status" hidden></div>
+      <div id="existing" hidden>
+        <p style="margin:0 0 10px;font-weight:500">Your workspaces</p>
+        <ul class="su-list" id="existing-list"></ul>
+      </div>
+      <form id="form" novalidate>
+        <div class="su-field">
+          <label for="name">Workspace name</label>
+          <input class="su-input" id="name" name="name" required maxlength="120" autocomplete="organization" placeholder="e.g. Northwind Coffee">
+        </div>
+        <div class="su-field">
+          <label for="website">Website <span style="opacity:.6;font-weight:400">(optional)</span></label>
+          <input class="su-input" id="website" name="website" maxlength="200" inputmode="url" autocomplete="url" placeholder="northwind.com">
+          <small>You'll set up the project for it right after you add your card.</small>
+        </div>
+        <div class="su-actions">
+          <button class="btn btn-primary" id="submit" type="submit">Continue to add a card</button>
+          <a class="btn btn-ghost" href="/docs/card-and-invoices/">How billing works</a>
+        </div>
+      </form>
+      <ol class="su-steps">
+        <li>Stripe saves your card and starts the subscription.</li>
+        <li>You come back here to set up your brand, prompts and competitors.</li>
+        <li>Your first answers run as soon as setup is done.</li>
+      </ol>
+      <p class="su-who" id="who"></p>
+    </div>
+  </main>
+  <script src="/vendor/gsap.min.js" defer></script>
+  <script src="/signup/signup.js" type="module"></script>
+</body>
+</html>

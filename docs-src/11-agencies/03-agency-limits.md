@@ -38,4 +38,4 @@ Share links expire. The default is 30 days.
 ## Things that aren't limits, but matter
 
 - **Engine availability.** Alexa can't be tracked, and any engine without an API key runs on the stub channel.
-- **Billing.** Card billing and invoices are not switched on yet.
+- **Billing.** Workspaces you create for clients aren't billed by card; card billing applies to workspaces people sign up for themselves. See [Card and invoices](/docs/card-and-invoices/).

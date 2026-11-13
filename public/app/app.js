@@ -1,6 +1,6 @@
 // Portal shell: session boot, navigation, project/tenant switchers, global filters and hash routing.
 import { h, clear, icon, store, toast, errorBox, csv, closeDrawer, segmented } from "./js/dom.js";
-import { api, session, setTenant, filterQuery, onAuthError } from "./js/api.js";
+import { api, session, setTenant, filterQuery, onAuthError, openBilling } from "./js/api.js";
 import { viewIn } from "./js/anim.js";
 import overview, { renderShared } from "./js/views/overview.js";
 import chats from "./js/views/chats.js";
@@ -86,6 +86,9 @@ async function boot(force) {
     } catch (err) {
       state.me = null;
       if (err.status === 401) showSignedOut();
+      else if (err.code === "no_tenant") clear(main).append(h("div", { class: "signedout" }, h("h1", null, "No workspace yet"),
+        h("p", null, "Your sign-in isn't linked to a workspace. Create one to start tracking, or ask the person who invited you to add you."),
+        h("div", { class: "row" }, h("a", { class: "btn btn-primary", href: "/signup/" }, "Create a workspace"), h("a", { class: "btn", href: "/" }, "Back to the homepage"))));
       else clear(main).append(errorBox(err, () => { state.boot = null; render(); }));
       if (session.tenant && err.status === 403) setTenant(null);
     }
@@ -135,7 +138,41 @@ function buildShell() {
   if (me.demo) b.append(h("div", { class: "banner", role: "status" }, icon("info"), h("span", null, "You're exploring the demo workspace with sample data. It's read-only, so every report is open but changes are turned off.")));
   else if (me.read_only) b.append(h("div", { class: "banner", role: "status" }, icon("info"), h("span", null, "You have view access to this workspace, so changes are turned off.")));
   const banner = me.billing && typeof me.billing.banner === "string" ? me.billing.banner.trim() : "";
-  if (banner) b.append(h("div", { class: "banner banner-warn", role: "status" }, icon("alert"), h("span", null, banner)));
+  if (banner) b.append(h("div", { class: "banner banner-warn", role: "status" }, icon("alert"), h("span", null, banner), billingButton(me.billing)));
+}
+
+/** Owners of a card-billed workspace get a button in the billing banner: add a card (Checkout) or update it (Stripe portal). */
+function billingButton(billing) {
+  if (!billing || !billing.can_manage) return null;
+  const needsCheckout = billing.status === "incomplete" || billing.status === "canceled";
+  return h("button", { class: "btn btn-sm btn-primary", type: "button", onclick: (e) => openBilling(needsCheckout ? "checkout" : "portal", e.currentTarget) }, needsCheckout ? "Add a card" : "Update card");
+}
+
+/** Back from Checkout: the webhook may land a moment after the redirect, so wait for it before saying it's done. */
+async function confirmCheckout() {
+  const params = new URLSearchParams(location.search);
+  if (params.get("billing") !== "success") return;
+  params.delete("billing");
+  const clean = location.pathname + (params.toString() ? `?${params}` : "") + location.hash;
+  history.replaceState(null, "", clean);
+  if (!state.me || !state.me.billing || state.me.billing.status !== "incomplete") { toast("Card saved. Your subscription is active.", "ok"); return; }
+  const b = $("banners");
+  const wait = h("div", { class: "banner", role: "status" }, h("span", { class: "spinner", "aria-hidden": "true" }), h("span", null, "Confirming your card with Stripe…"));
+  if (b) b.prepend(wait);
+  for (let i = 0; i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const me = await api("me", { quiet: true }).catch(() => null);
+    if (me && me.billing && me.billing.status !== "incomplete") {
+      wait.remove();
+      toast("Card saved. Set up your project to start the first run.", "ok");
+      state.boot = null;
+      await boot(true);
+      render();
+      return;
+    }
+  }
+  wait.remove();
+  toast("Stripe hasn't confirmed yet. Reload in a minute; if it's still waiting, check the Stripe dashboard.", "error");
 }
 
 function renderProjectSwitcher(route) {
@@ -337,4 +374,4 @@ function wireChrome() {
 
 window.addEventListener("hashchange", render);
 wireChrome();
-render();
+render().then(confirmCheckout);

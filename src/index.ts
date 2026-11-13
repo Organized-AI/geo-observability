@@ -8,6 +8,8 @@ import { ingestConversions, ingestEdge, ingestHit, resolveKey } from "./observab
 import { consumeRuns, scheduleDuePasses, scheduleInsights } from "./workflows/scheduler";
 import { rollupRecent } from "./metrics/rollup";
 import { aggregateUsage } from "./billing/hooks";
+import { stripeProvider } from "./billing/stripe";
+import { billingApi, signupApi, stripeWebhook } from "./routes/billing";
 
 export { RunPromptWorkflow, InsightsWorkflow } from "./workflows/run-prompt";
 export { RunProgress } from "./durable/progress";
@@ -33,9 +35,14 @@ app.get("/healthz", (c) => c.json({ ok: true, env: c.env.ENVIRONMENT }));
 app.route("/api/shared", sharedApi);
 app.route("/api/tenants", tenantsApi);
 app.route("/api/v1", v1);
+app.route("/api/signup", signupApi);
+app.route("/api/billing", billingApi);
 app.route("/api", portalApi);
 
 app.all("/mcp", (c) => handleMcp(c.req.raw, c.env));
+
+// Stripe calls this; the signature is the authentication, so keep it outside Cloudflare Access.
+app.post("/webhooks/stripe", (c) => stripeWebhook(c.req.raw, c.env));
 
 // ------------------------------------------------------------------ ingest (observability layer)
 
@@ -92,7 +99,7 @@ export default {
         ctx.waitUntil(scheduleInsights(env, when));
         break;
       default:
-        ctx.waitUntil(Promise.all([rollupRecent(env, when), aggregateUsage(env)]));
+        ctx.waitUntil(Promise.all([rollupRecent(env, when), aggregateUsage(env, stripeProvider(env))]));
     }
   },
 } satisfies ExportedHandler<Env, RunJob>;

@@ -16,6 +16,7 @@ export default defineConfig(async () => {
             AGENCY_EMAILS: "owner@agency.test",
             DEMO_MODE: "false",
             SHARE_LINK_SECRET: "test-share-secret-0123456789",
+            STRIPE_WEBHOOK_SECRET: "whsec_test_geo_observability_0123456789",
           },
         },
       }),

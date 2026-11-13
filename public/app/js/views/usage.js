@@ -1,6 +1,6 @@
 // Usage & API: this month's answers and model spend, plus API keys.
 import { h, fmt, table, badge, empty, toast, field, dialog, copyBtn, icon, card } from "../dom.js";
-import { api } from "../api.js";
+import { api, openBilling } from "../api.js";
 import { countUp } from "../anim.js";
 import { bars } from "../charts.js";
 import { pageHead, load } from "./common.js";
@@ -26,8 +26,45 @@ function usagePanel(ctx, box) {
       ], rows, { label: "Usage by engine" }));
       box.append(bars(rows.map((r) => ({ label: ctx.engineLabel(r.engine), value: r.answers })), { format: fmt.int }));
     }
-    if (u.billing && u.billing.provider === "none") box.append(h("p", { class: "muted small" }, "Billing isn't connected for this workspace. Usage is tracked for reporting."));
   }, 4);
+}
+
+const STATUS = {
+  active: ["Active", "ok"], trialing: ["Trial", "accent"], past_due: ["Payment failed", "warn"],
+  unpaid: ["Unpaid", "neg"], canceled: ["Ended", "neg"], incomplete: ["No card yet", "warn"],
+};
+const METER_LABEL = { answers_run: "Answers run", llm_cost_micros: "Model spend", browser_minutes: "Browser minutes", extra_engines: "Extra engines" };
+const PUSH_LABEL = { pending: "Waiting to send", pushed: "Sent to Stripe", skipped: "Not billed", failed: "Couldn't send" };
+
+function billingPanel(ctx, box) {
+  return load(box, () => api("billing"), (b) => {
+    if (b.provider !== "stripe") {
+      box.append(h("p", { class: "muted" }, b.enabled
+        ? "This workspace isn't billed by card. Usage is tracked for reporting."
+        : "Card billing isn't switched on. Usage is tracked for reporting."));
+      return;
+    }
+    const [label, tone] = STATUS[b.status] || [b.status, "accent"];
+    const facts = [h("div", { class: "kpi" }, h("p", { class: "kpi-label" }, "Status"), h("p", null, badge(label, tone)))];
+    if (b.current_period_end) facts.push(h("div", { class: "kpi" }, h("p", { class: "kpi-label" }, b.cancel_at_period_end ? "Ends on" : "Renews on"), h("p", { class: "num" }, fmt.dateLong(b.current_period_end))));
+    if (b.status === "past_due" && b.grace_until) facts.push(h("div", { class: "kpi" }, h("p", { class: "kpi-label" }, "Runs pause after"), h("p", { class: "num" }, fmt.dateLong(b.grace_until))));
+    box.append(h("div", { class: "kpis kpis-compact" }, facts));
+    if (b.can_manage) {
+      const needsCheckout = b.status === "incomplete" || b.status === "canceled";
+      box.append(h("div", { class: "row" },
+        h("button", { type: "button", class: "btn btn-primary", onclick: (e) => openBilling(needsCheckout ? "checkout" : "portal", e.currentTarget) }, needsCheckout ? "Add a card" : "Manage billing"),
+        h("span", { class: "muted small" }, needsCheckout ? "Opens Stripe Checkout." : "Opens Stripe to change your card, see invoices or cancel.")));
+    } else box.append(h("p", { class: "muted small" }, "Only workspace owners can change billing."));
+    const rows = (b.pushes || []).map((p) => ({ ...p, meterLabel: METER_LABEL[p.meter] || p.meter }));
+    if (rows.length) {
+      box.append(h("h3", { class: "sub-title" }, `Usage sent to Stripe · ${b.month}`), table([
+        { label: "Meter", key: "meterLabel" },
+        { label: "Status", render: (r) => badge(PUSH_LABEL[r.state] || r.state, r.state === "pushed" ? "ok" : r.state === "failed" ? "neg" : r.state === "pending" ? "accent" : "warn") },
+        { label: "Amount", num: true, render: (r) => (r.meter === "llm_cost_micros" ? fmt.money(r.quantity) : fmt.int(r.quantity)) },
+      ], rows, { label: "Usage sent to Stripe" }));
+      box.append(h("p", { class: "muted small" }, "Usage is totalled per hour and sent to Stripe about 20 minutes after each hour ends."));
+    }
+  }, 3);
 }
 
 function keysPanel(ctx, box) {
@@ -64,12 +101,14 @@ function keysPanel(ctx, box) {
 }
 
 export default async function usage(ctx) {
-  ctx.el.append(pageHead("Usage & API", "Answers run and model spend this month, and keys for the API, MCP server and tracking."));
+  ctx.el.append(pageHead("Usage & API", "Answers run and model spend this month, billing, and keys for the API, MCP server and tracking."));
   const u = card("This month", {});
+  const bl = card("Billing", {});
   const k = card("API keys", { class: "card-flush" });
-  ctx.el.append(h("div", { class: "stack" }, u, k,
+  ctx.el.append(h("div", { class: "stack" }, u, bl, k,
     card("Using the API", {}, h("p", null, "Read keys work with the REST API under ", h("code", null, "/api/v1"), " and the MCP server at ", h("code", null, "/mcp"), ". Send the key in the ", h("code", null, "X-API-Key"), " header for REST, or as a bearer token for MCP."),
       h("p", { class: "muted small" }, "Full reference: ", h("a", { href: "/docs/" }, "documentation"), "."))));
   usagePanel(ctx, u.querySelector(".card-body"));
+  billingPanel(ctx, bl.querySelector(".card-body"));
   keysPanel(ctx, k.querySelector(".card-body"));
 }

@@ -25,7 +25,7 @@ Engines without a provider key run on a clearly labelled stub, so everything wor
 
 | Path | What |
 |---|---|
-| `src/` | Worker: engines, judge, metrics, workflows, observability, insights, routes, MCP, billing hooks |
+| `src/` | Worker: engines, judge, metrics, workflows, observability, insights, routes, MCP, Stripe billing |
 | `public/` | Landing page, portal (`/app`), generated docs (`/docs`), `tap.js` |
 | `docs-src/` | Docs sources (Markdown) → `npm run build:docs` |
 | `edge/` | Edge tap Worker for client zones |
@@ -34,4 +34,4 @@ Engines without a provider key run on a clearly labelled stub, so everything wor
 
 Deploying: [DOCUMENTATION/deploy.md](DOCUMENTATION/deploy.md). Architecture: [ARCHITECTURE/overview.md](ARCHITECTURE/overview.md). API: [ARCHITECTURE/API.md](ARCHITECTURE/API.md). Phases: [PLANNING/phases.md](PLANNING/phases.md).
 
-Billing is not wired yet: usage is logged per client and runs are gated on a billing status, ready for a provider ([SPECIFICATIONS/billing.md](SPECIFICATIONS/billing.md)).
+Billing runs on Stripe (test mode first): card on file at signup, usage metered per client and pushed hourly to Stripe meters, webhooks gate runs on payment status ([SPECIFICATIONS/billing.md](SPECIFICATIONS/billing.md), setup in [DOCUMENTATION/stripe-billing.md](DOCUMENTATION/stripe-billing.md)).

@@ -10,7 +10,7 @@ import { crawlerReport, pagesReport, referralReport } from "../observability/pag
 import { enqueuePass } from "../workflows/scheduler";
 import { progressStub } from "../durable/progress";
 import { contentBrief, draftProfile, generatePrompts, suggestCompetitors, suggestTopics, type Profile } from "../onboarding/assist";
-import { billingBanner, billingStatus } from "../billing/hooks";
+import { billingBanner, billingLocks, billingStatus } from "../billing/hooks";
 import { TenantDB, type BrandRow, type ProjectRow, type PromptRow } from "../lib/db";
 
 export type AppEnv = { Bindings: Env; Variables: { session: Session } };
@@ -21,7 +21,16 @@ const COUNTRY = /^[A-Z]{2}$/;
 const api = new Hono<AppEnv>();
 
 api.use("*", async (c, next) => {
-  c.set("session", await resolveSession(c.req.raw, c.env));
+  const s = await resolveSession(c.req.raw, c.env);
+  // A Stripe-billed workspace with no card, an unpaid invoice or an ended subscription is read-only for its own users.
+  if (!s.demo && !s.isAgency) {
+    const b = await billingStatus(c.env, s.tenant.id);
+    if (b.provider === "stripe" && billingLocks(b.status)) {
+      s.billingLocked = true;
+      s.readOnly = true;
+    }
+  }
+  c.set("session", s);
   await next();
 });
 
@@ -89,7 +98,14 @@ api.get("/me", async (c) => {
     demo: s.demo,
     read_only: s.readOnly,
     app_name: c.env.APP_NAME,
-    billing: { provider: b.provider, status: b.status, banner: billingBanner(b.status) },
+    billing: {
+      provider: b.provider,
+      status: b.status,
+      banner: billingBanner(b.status, b.grace_until),
+      locked: !!s.billingLocked,
+      grace_until: b.grace_until,
+      can_manage: s.role === "owner" && !s.demo && b.provider === "stripe",
+    },
   });
 });
 

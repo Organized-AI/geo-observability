@@ -26,6 +26,9 @@ export interface Env {
   GEMINI_MODEL: string;
   PERPLEXITY_MODEL: string;
   BILLING_GRACE_DAYS?: string;
+  STRIPE_AUTOMATIC_TAX?: string; // "true" turns on Stripe Tax in Checkout; off by default
+  STRIPE_LIVE_MODE?: string; // must be "true" before a live key is accepted
+  APP_URL?: string; // public origin for Stripe return links; defaults to the request origin
 
   // secrets (all optional: missing provider keys fall back to the labelled stub engine)
   CLOUDFLARE_ACCOUNT_ID?: string;
@@ -40,6 +43,9 @@ export interface Env {
   SHARE_LINK_SECRET?: string;
   OTEL_EXPORTER_URL?: string;
   OTEL_EXPORTER_HEADERS?: string; // JSON object of extra headers, e.g. {"Authorization":"Basic ..."}
+  STRIPE_SECRET_KEY?: string; // sk_test_… until live billing is approved
+  STRIPE_WEBHOOK_SECRET?: string; // whsec_… for /webhooks/stripe
+  STRIPE_BILLING_CONFIG?: string; // JSON from scripts/stripe-setup.mjs (price and meter ids)
   DEV_AUTH_EMAIL?: string; // local development only; ignored unless ENVIRONMENT is "development"
   AGENCY_EMAILS?: string; // comma-separated emails that see every tenant (agency staff)
 }

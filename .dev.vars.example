@@ -9,3 +9,7 @@ ANTHROPIC_API_KEY=
 GEMINI_API_KEY=
 PERPLEXITY_API_KEY=
 SHARE_LINK_SECRET=change-me-to-a-long-random-string
+# Stripe sandbox (optional): see DOCUMENTATION/stripe-billing.md. Test keys only.
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_BILLING_CONFIG=

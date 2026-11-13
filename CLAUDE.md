@@ -14,8 +14,8 @@ AI search visibility (AEO/GEO) tracking with an observability layer, for client 
 - `src/engines/` provider clients + stub + registry · `src/judge/` mention matching and LLM judge
 - `src/metrics/` filters, reports, rollups · `src/observability/` bot/referral classify, ingest, Pages table
 - `src/workflows/` scheduler, pipeline steps, Workflow classes · `src/insights/` insights and actions
-- `src/routes/` portal API, public v1 API · `src/mcp/` MCP server · `src/billing/` hooks only (no provider)
-- `public/app` portal · `public/index.html` landing · `public/docs` generated docs · `edge/` client-zone tap Worker
+- `src/routes/` portal API, public v1 API · `src/mcp/` MCP server · `src/billing/` Stripe client, metering push, webhooks, gating · `src/routes/billing.ts` signup/checkout/portal/webhook
+- `public/app` portal · `public/signup` self-serve signup · `public/index.html` landing · `public/docs` generated docs · `edge/` client-zone tap Worker
 - `migrations/` D1 schema · `scripts/` docs build, demo seed, offline dev, lint · `test/` unit + integration
 
 ## Code conventions
@@ -30,7 +30,7 @@ AI search visibility (AEO/GEO) tracking with an observability layer, for client 
 - Don't scrape assistant UIs or sign in to third-party apps; engines use official APIs only. Alexa stays "unavailable".
 - Don't copy any competitor's docs, copy, branding or code. Docs in docs-src are written fresh.
 - Don't add time estimates to plans or docs.
-- Don't wire a billing provider without the owner's go-ahead; billing is hooks only (see SPECIFICATIONS/billing.md).
+- Billing is Stripe in test mode (see SPECIFICATIONS/billing.md). Don't switch on live mode, Stripe Tax or change prices without the owner's go-ahead, and never create Stripe objects from an agent session: `scripts/stripe-setup.mjs` is run by the owner.
 - Never commit secrets. Commits are authored by Jordan Hill; no AI co-author trailers.
 
 ## Verification requirements

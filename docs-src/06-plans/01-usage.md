@@ -41,4 +41,4 @@ Your plan sets limits on the number of prompts, projects, engines and countries.
 
 ## Billing
 
-Card billing and invoices are not switched on yet. The Usage page shows your usage and estimated spend, but nothing is charged to a card through the portal today.
+Workspaces you sign up for yourself are billed by card: a monthly plan fee plus the usage above, counted on our side and sent to Stripe every hour. See [Card and invoices](/docs/card-and-invoices/) for how that works, and [When a payment fails](/docs/when-a-payment-fails/) for what happens if a charge doesn't go through. Workspaces set up for you by an agency are billed however you agreed with them, and the Usage page says so.

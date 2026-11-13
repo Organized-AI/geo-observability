@@ -47,7 +47,11 @@ Set `DEMO_MODE` to `"false"` in wrangler.jsonc once real clients are on it.
 
 ## 4. Cloudflare Access
 
-Zero Trust → Access → Applications → self-hosted, domain = the Worker's host, path `/app*` and `/api*` (exclude `/api/v1*`, `/api/shared*`, `/mcp`, `/ingest*`, `/tap.js`, `/docs*`, `/`). Policy: allow the agency's emails plus each client's email domain. Copy the audience tag into `ACCESS_AUD`.
+Zero Trust → Access → Applications → self-hosted, domain = the Worker's host, paths `/app*`, `/api*` and `/signup*` (exclude `/api/v1*`, `/api/shared*`, `/mcp`, `/ingest*`, `/webhooks*`, `/tap.js`, `/docs*`, `/`). Policy: allow the agency's emails plus each client's email domain. Copy the audience tag into `ACCESS_AUD`.
+
+## 4b. Stripe billing
+
+See [stripe-billing.md](stripe-billing.md): one script creates the sandbox products, prices, meters, portal configuration and webhook, and sets the three Stripe secrets. Without them, card billing and self-serve signup stay off and everything else works as before.
 
 ## 5. GitOps
 

@@ -6,12 +6,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
 
-  // Portal, marketing page and docs are static assets; /api, /mcp, /ingest, /share and /auth hit the Worker first.
+  // Portal, marketing page and docs are static assets; /api, /mcp, /ingest, /share, /auth and /webhooks hit the Worker first.
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/mcp", "/mcp/*", "/ingest/*", "/share/*", "/auth/*", "/healthz"]
+    "run_worker_first": ["/api/*", "/mcp", "/mcp/*", "/ingest/*", "/share/*", "/auth/*", "/webhooks/*", "/healthz"]
   },
 
   "observability": { "enabled": true, "head_sampling_rate": 1 },
@@ -27,9 +27,13 @@
     "ANTHROPIC_MODEL": "claude-sonnet-5-5",
     "GEMINI_MODEL": "gemini-2.5-flash",
     "PERPLEXITY_MODEL": "sonar",
-    "BILLING_GRACE_DAYS": "7"
+    "BILLING_GRACE_DAYS": "7",
+    "STRIPE_AUTOMATIC_TAX": "false",
+    "STRIPE_LIVE_MODE": "false"
   },
 
+  // Billing secrets (scripts/stripe-setup.mjs prints or sets them): STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
+  // STRIPE_BILLING_CONFIG. Without them card billing and self-serve signup stay off.
   // Secrets (wrangler secret put): CLOUDFLARE_ACCOUNT_ID, CF_AIG_TOKEN, OPENAI_API_KEY, ANTHROPIC_API_KEY,
   // GEMINI_API_KEY, PERPLEXITY_API_KEY, ACCESS_TEAM_DOMAIN, ACCESS_AUD, SHARE_LINK_SECRET, OTEL_EXPORTER_URL,
   // OTEL_EXPORTER_HEADERS. Any engine without a key runs on the labelled stub engine.
@@ -86,7 +90,9 @@
         "ANTHROPIC_MODEL": "claude-sonnet-5-5",
         "GEMINI_MODEL": "gemini-2.5-flash",
         "PERPLEXITY_MODEL": "sonar",
-        "BILLING_GRACE_DAYS": "7"
+        "BILLING_GRACE_DAYS": "7",
+        "STRIPE_AUTOMATIC_TAX": "false",
+        "STRIPE_LIVE_MODE": "false"
       },
       "ai": { "binding": "AI" },
       "d1_databases": [

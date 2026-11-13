@@ -13,6 +13,7 @@ function messageFor(status, code, serverMsg) {
   if (status === 0) return "Can't reach the server. Check your connection and try again.";
   if (status === 401) return "You're signed out. Reload the page to sign in again.";
   if (status === 403 && code === "read_only") return "This workspace is read-only, so changes are turned off.";
+  if (status === 403 && code === "billing_locked") return serverMsg || "Changes are paused until billing is sorted out.";
   if (status === 403) return "You don't have access to this.";
   if (status === 404) return serverMsg || "That item wasn't found.";
   if (status === 429) return "Too many requests. Wait a little and try again.";
@@ -73,4 +74,14 @@ export function linkUrl(path, q) {
   if (session.tenant) qs.set("tenant", session.tenant);
   const s = qs.toString();
   return s ? `${path}?${s}` : path;
+}
+
+/** Opens Stripe: Checkout to add a card, or the customer portal to update it and see invoices. */
+export async function openBilling(kind, btn) {
+  if (btn) btn.disabled = true;
+  try {
+    const r = await api(`billing/${kind}`, { method: "POST" });
+    if (r && r.url) location.assign(r.url);
+    else if (btn) btn.disabled = false;
+  } catch { if (btn) btn.disabled = false; }
 }

@@ -15,12 +15,14 @@ export interface Session {
   tenant: TenantRow;
   role: Role;
   readOnly: boolean;
+  /** Set by the portal when billing makes the workspace read-only (no card yet, unpaid, canceled). */
+  billingLocked?: boolean;
   tdb: TenantDB;
 }
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
-async function accessEmail(req: Request, env: Env): Promise<string | null> {
+export async function accessEmail(req: Request, env: Env): Promise<string | null> {
   if (env.ENVIRONMENT === "development" && env.DEV_AUTH_EMAIL) return env.DEV_AUTH_EMAIL.toLowerCase();
   const token = req.headers.get("cf-access-jwt-assertion");
   if (!token || !env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) return null;
@@ -155,6 +157,7 @@ export async function agencyEmail(req: Request, env: Env & { AGENCY_EMAILS?: str
 }
 
 export function requireWrite(s: Session): void {
+  if (s.billingLocked) throw new HttpError(403, "billing_locked", "Changes are paused until billing is sorted out. An owner can sort it out under Usage & API.");
   if (s.readOnly) throw new HttpError(403, "read_only", s.demo ? "The demo is read-only." : "Your role is read-only.");
 }
 
