@@ -4,6 +4,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-14
+
 ### Added
 - GitOps like Organized-AI/podcast-agent: a PR Gate on every pull request, security scans, staging deployed from `main`, production deployed from a `vX.Y.Z` tag with a GitHub Release from this file, and a rollback workflow (DOCUMENTATION/gitops.md). The workflows are parked in `CONFIG/github-workflows/` until they are moved into `.github/workflows/`.
 - Infrastructure as code: `infra/environments.json` plus `wrangler.jsonc` declare every resource per environment; `npm run infra:plan|infra:apply -- --env <env>` lists or creates what is missing (D1, KV, R2, queues and dead-letter queues, AI Gateway) and checks which Worker secrets are set (names only). `npm run infra:check` runs offline in CI: staging mirrors production's bindings and vars and shares none of its resources.
