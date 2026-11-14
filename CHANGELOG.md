@@ -12,6 +12,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `CONFIG/github/setup.sh`: creates the `staging` and `production` environments and the `main` and `v*` tag rulesets with `gh`.
 
 ### Changed
+- The Organized AI look across the app, matching DealCon: paper, ink and yellow, a black header bar, IBM Plex Sans and Mono with Source Serif 4 headings, in the landing page, portal, signup, sign-in, user guide and the 3D map, light and dark.
 - The README is product-level: diagrams (Mermaid) and an animated preview of the 3D map instead of ids, prices and secret lists.
 
 ### Fixed

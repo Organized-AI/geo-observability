@@ -126,7 +126,7 @@ export function bars(items, opts = {}) {
   const fills = [];
   const el = h("div", { class: "hbars", role: "list" }, items.map((it, i) => {
     const w = max > 0 ? Math.max(0, Math.min(100, ((it.value || 0) / max) * 100)) : 0;
-    const fill = s("rect", { x: 0, y: 0, width: w, height: 10, rx: 0, style: `fill:${it.color || opts.color || "var(--accent)"}` });
+    const fill = s("rect", { x: 0, y: 0, width: w, height: 10, rx: 0, style: `fill:${it.color || opts.color || "var(--series-1)"}` });
     fills.push(fill);
     return h("div", { class: "hbar", role: "listitem" },
       h("span", { class: "hbar-label" }, it.label),
@@ -146,7 +146,7 @@ export function sparkline(values, opts = {}) {
   const y = (v) => { const r = (v - lo) / (hi - lo); return opts.invert ? 3 + r * 24 : 27 - r * 24; };
   const d = pts.map((v, i) => `${i ? "L" : "M"}${((i / (pts.length - 1)) * 100).toFixed(2)},${y(v).toFixed(2)}`).join("");
   const area = `${d}L100,30L0,30Z`;
-  svg.append(s("path", { d: area, class: "spark-area", style: `fill:${opts.color || "var(--accent)"}` }), s("path", { d, class: "spark-line", style: `stroke:${opts.color || "var(--accent)"}` }));
+  svg.append(s("path", { d: area, class: "spark-area", style: `fill:${opts.color || "var(--series-1)"}` }), s("path", { d, class: "spark-line", style: `stroke:${opts.color || "var(--series-1)"}` }));
   return svg;
 }
 

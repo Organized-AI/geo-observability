@@ -1,26 +1,26 @@
 /* GEO Observability docs — shared layout. Colours are tokens on :root, redefined for dark mode. */
 
 :root {
-  --bg: #fbfbf9;
+  --bg: #faf9f4;
   --bg-raised: #ffffff;
-  --bg-sunk: #f2f2ee;
-  --text: #17181c;
-  --text-muted: #5b5d66;
-  --text-faint: #8a8c94;
-  --border: #e3e3dd;
-  --border-strong: #cfcfc7;
-  --accent: #4338ca;
-  --accent-soft: #eceafd;
-  --accent-text: #3730a3;
-  --signal: #0f8a6c;
-  --code-bg: #f4f4f0;
-  --code-text: #23242a;
-  --callout-bg: #f3f6ff;
-  --callout-border: #c9d3fb;
-  --shadow: 0 10px 30px -12px rgba(20, 20, 40, 0.18);
-  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-  --font-body: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --bg-sunk: #f2f0e7;
+  --text: #111110;
+  --text-muted: #5f5b50;
+  --text-faint: #8c877a;
+  --border: #e4e1d6;
+  --border-strong: #cfcab9;
+  --accent: #f5d528;
+  --accent-soft: #fbf0b4;
+  --accent-text: #7a5f00;
+  --signal: #7a5f00;
+  --code-bg: #f2f0e7;
+  --code-text: #111110;
+  --callout-bg: #fbf6dc;
+  --callout-border: #ead98a;
+  --shadow: 0 1px 0 rgba(17, 17, 16, 0.04), 0 10px 28px -16px rgba(17, 17, 16, 0.22);
+  --font-display: "Source Serif 4", Georgia, serif;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --topbar-h: 60px;
   --nav-w: 272px;
   --toc-w: 220px;
@@ -29,45 +29,45 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #0f1014;
-    --bg-raised: #16171d;
-    --bg-sunk: #1b1c23;
-    --text: #e9e9ee;
-    --text-muted: #a3a5b0;
-    --text-faint: #767884;
-    --border: #262832;
-    --border-strong: #353844;
-    --accent: #a5a8ff;
-    --accent-soft: #23244a;
-    --accent-text: #c3c5ff;
-    --signal: #45d1a6;
-    --code-bg: #1a1b22;
-    --code-text: #e1e1e8;
-    --callout-bg: #171a2c;
-    --callout-border: #2f3566;
-    --shadow: 0 14px 34px -14px rgba(0, 0, 0, 0.7);
+    --bg: #121210;
+    --bg-raised: #1a1a17;
+    --bg-sunk: #161613;
+    --text: #edebe3;
+    --text-muted: #a8a396;
+    --text-faint: #78746a;
+    --border: #2b2a25;
+    --border-strong: #3d3b34;
+    --accent: #f5d528;
+    --accent-soft: #3a3416;
+    --accent-text: #f5d528;
+    --signal: #f5d528;
+    --code-bg: #161613;
+    --code-text: #edebe3;
+    --callout-bg: #211f15;
+    --callout-border: #4a4220;
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 28px -16px rgba(0, 0, 0, 0.7);
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #0f1014;
-  --bg-raised: #16171d;
-  --bg-sunk: #1b1c23;
-  --text: #e9e9ee;
-  --text-muted: #a3a5b0;
-  --text-faint: #767884;
-  --border: #262832;
-  --border-strong: #353844;
-  --accent: #a5a8ff;
-  --accent-soft: #23244a;
-  --accent-text: #c3c5ff;
-  --signal: #45d1a6;
-  --code-bg: #1a1b22;
-  --code-text: #e1e1e8;
-  --callout-bg: #171a2c;
-  --callout-border: #2f3566;
-  --shadow: 0 14px 34px -14px rgba(0, 0, 0, 0.7);
+  --bg: #121210;
+  --bg-raised: #1a1a17;
+  --bg-sunk: #161613;
+  --text: #edebe3;
+  --text-muted: #a8a396;
+  --text-faint: #78746a;
+  --border: #2b2a25;
+  --border-strong: #3d3b34;
+  --accent: #f5d528;
+  --accent-soft: #3a3416;
+  --accent-text: #f5d528;
+  --signal: #f5d528;
+  --code-bg: #161613;
+  --code-text: #edebe3;
+  --callout-bg: #211f15;
+  --callout-border: #4a4220;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 28px -16px rgba(0, 0, 0, 0.7);
   color-scheme: dark;
 }
 
@@ -86,13 +86,13 @@ body {
   overflow-x: hidden;
 }
 
-a { color: var(--accent); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a { color: var(--accent-text); text-underline-offset: 3px; text-decoration-thickness: 1px; }
 a:hover { text-decoration-thickness: 2px; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; border-radius: 4px; }
 
 .skip-link {
   position: absolute; left: 12px; top: -48px; z-index: 100;
-  background: var(--accent); color: #fff; padding: 8px 12px; border-radius: 6px;
+  background: var(--accent); color: #0b0b0a; padding: 8px 12px; border-radius: 6px;
 }
 .skip-link:focus { top: 10px; }
 
@@ -117,8 +117,8 @@ a:hover { text-decoration-thickness: 2px; }
 .brand-mark {
   width: 22px; height: 22px; border-radius: 6px; flex: none;
   background:
-    radial-gradient(circle at 30% 30%, var(--signal) 0 3px, transparent 3.5px),
-    conic-gradient(from 200deg, var(--accent), var(--signal), var(--accent));
+    radial-gradient(circle at 30% 30%, #0b0b0a 0 3px, transparent 3.5px),
+    linear-gradient(var(--accent), var(--accent));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent);
 }
 .brand-sub {
