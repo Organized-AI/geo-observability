@@ -1,3 +1,5 @@
+<img src="public/brand/logo-192.png" alt="GEO Observability logo: a human hand shaking a robot hand" width="88">
+
 # GEO Observability — AI answer visibility with an observability layer
 
 [![ci](https://github.com/Organized-AI/geo-observability/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Organized-AI/geo-observability/actions/workflows/ci.yml)

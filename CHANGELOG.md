@@ -4,6 +4,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Changed
+- New logo (a human hand shaking a robot hand) in the header of every page, the user guide and the 3D map, as the favicon and home-screen icon, on the social share image (`/brand/og.png`) and in the README.
+
 ## [1.4.0] - 2026-11-14
 
 ### Added
