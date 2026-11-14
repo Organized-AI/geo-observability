@@ -4,6 +4,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Fixed
+- With AI Gateway unified billing on (`AIG_UNIFIED_BILLING=true`), Perplexity now stays on the labelled stub unless `PERPLEXITY_API_KEY` is set, because unified billing doesn't pay Perplexity. Before, Perplexity runs would have failed.
+
 ## [1.4.1] - 2026-11-14
 
 ### Changed

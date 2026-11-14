@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { findMentions, classifyDomain, ruleSentiment, type BrandMatcher } from "../src/judge/mentions";
 import { normaliseJudge } from "../src/judge/llm";
-import { parseAnthropic, parseGemini, parseOpenAI, parsePerplexity } from "../src/engines/providers";
+import { chatgpt, claude, gemini, parseAnthropic, parseGemini, parseOpenAI, parsePerplexity, perplexity } from "../src/engines/providers";
+import type { Env } from "../src/env";
 import { classifyBot, classifyReferral } from "../src/observability/classify";
 import { canonicalUrl, csvEscape, parseCsv } from "../src/lib/util";
 import { allocate, templatePrompts } from "../src/onboarding/assist";
@@ -129,6 +130,24 @@ describe("provider parsers", () => {
       search_results: [{ url: "https://acme.com/", title: "Acme" }, { url: "https://other.com/" }],
     });
     expect(p.citations.map((c) => c.kind)).toEqual(["cited", "used"]);
+  });
+});
+
+describe("engine channels", () => {
+  const gw = { CLOUDFLARE_ACCOUNT_ID: "acct", AI_GATEWAY_ID: "geo-observability" };
+  it("runs on the stub with no key and no unified billing", () => {
+    const env = gw as unknown as Env;
+    for (const e of [chatgpt, claude, gemini, perplexity]) expect(e.channel(env)).toBe("stub");
+  });
+  it("unified billing covers OpenAI, Anthropic and Gemini but not Perplexity", () => {
+    const env = { ...gw, AIG_UNIFIED_BILLING: "true" } as unknown as Env;
+    expect([chatgpt, claude, gemini].map((e) => e.channel(env))).toEqual(["api", "api", "api"]);
+    expect(perplexity.channel(env)).toBe("stub");
+    expect(perplexity.channel({ ...env, PERPLEXITY_API_KEY: "k" } as unknown as Env)).toBe("api");
+  });
+  it("unified billing does nothing without the gateway", () => {
+    const env = { AIG_UNIFIED_BILLING: "true", AI_GATEWAY_ID: "geo-observability" } as unknown as Env;
+    expect(chatgpt.channel(env)).toBe("stub");
   });
 });
 

@@ -197,8 +197,13 @@ export function parsePerplexity(body: PerplexityResponse): Parsed {
 
 // ------------------------------------------------------------------ engine objects
 
-function hasKey(env: Env, key: string | undefined): boolean {
-  return !!key || (env.AIG_UNIFIED_BILLING === "true" && gatewayEnabled(env));
+/**
+ * An engine is live when its provider key is set, or when AI Gateway unified billing pays that provider.
+ * Unified billing covers OpenAI, Anthropic and Google AI Studio, not Perplexity, so Perplexity always needs
+ * its own key. https://developers.cloudflare.com/ai-gateway/features/unified-billing/
+ */
+function hasKey(env: Env, key: string | undefined, unifiedBilling = true): boolean {
+  return !!key || (unifiedBilling && env.AIG_UNIFIED_BILLING === "true" && gatewayEnabled(env));
 }
 
 function wrap(parsed: Parsed, model: string, res: { logId: string | null; latencyMs: number }, raw: unknown): EngineAnswer {
@@ -288,9 +293,9 @@ export const perplexity: Engine = {
   id: "perplexity",
   label: "Perplexity",
   vendor: "Perplexity",
-  channel: (env) => (hasKey(env, env.PERPLEXITY_API_KEY) ? "api" : "stub"),
+  channel: (env) => (hasKey(env, env.PERPLEXITY_API_KEY, false) ? "api" : "stub"),
   note: (env) =>
-    hasKey(env, env.PERPLEXITY_API_KEY) ? "Perplexity Sonar, through AI Gateway." : "No Perplexity key set; answers come from the labelled stub engine.",
+    hasKey(env, env.PERPLEXITY_API_KEY, false) ? "Perplexity Sonar, through AI Gateway." : "No Perplexity key set; answers come from the labelled stub engine.",
   async ask(prompt, ctx) {
     const { env } = ctx;
     if (this.channel(env) === "stub") return stubAnswer("perplexity", prompt, ctx);

@@ -26,7 +26,7 @@ npx wrangler secret put SHARE_LINK_SECRET       # long random string
 npx wrangler secret put EMAIL_FROM              # sender for sign-in links, on a domain onboarded to Cloudflare Email Service
 # optional: ACCESS_TEAM_DOMAIN, ACCESS_AUD (Cloudflare Access for staff), RESEND_API_KEY (email fallback)
 npx wrangler secret put AGENCY_EMAILS           # comma-separated; these users see every client
-# optional: OTEL_EXPORTER_URL, OTEL_EXPORTER_HEADERS, AIG_UNIFIED_BILLING=true (if AI Gateway pays providers)
+# optional: OTEL_EXPORTER_URL, OTEL_EXPORTER_HEADERS, AIG_UNIFIED_BILLING=true (if AI Gateway pays providers: covers OpenAI, Anthropic and Gemini; Perplexity still needs PERPLEXITY_API_KEY)
 ```
 
 Model ids are plain vars in wrangler.jsonc (`OPENAI_MODEL`, `ANTHROPIC_MODEL`, `GEMINI_MODEL`, `PERPLEXITY_MODEL`, `JUDGE_MODEL`). Check them against each provider's current model list. Token prices for cost estimates live in KV key `pricing` (see `src/engines/registry.ts`).
