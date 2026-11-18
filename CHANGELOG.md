@@ -4,6 +4,13 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+- Add the read-only demo pass page and API/MCP credentials with durable expiry, atomic quotas, revocation, and shared-host support.
+- Preserve production scheduler deduplication and recoverable queue dispatch in source and migrations.
+- Keep Perplexity on the labelled stub until its own provider key is configured; unified billing does not cover it.
+- Expose billing mode in signup status and add a production readiness check.
+- Update the Cloudflare test plugin and run local verification without remote AI/email bindings.
+
+
 ## [1.4.1] - 2026-11-14
 
 ### Changed

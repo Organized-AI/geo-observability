@@ -89,3 +89,21 @@ npm run db:migrate:local && npm run seed:demo:local
 npm run dev:offline            # no Cloudflare login needed; Workers AI features fall back to rules
 # or: cp .dev.vars.example .dev.vars && npm run dev   (needs a Cloudflare login for the AI binding)
 ```
+
+## Readiness verification
+
+Run `node scripts/readiness.mjs https://geo-observability.jordan-691.workers.dev` after deployment.
+Add `--require-live-billing` only when commercial billing has been approved and configured.
+The command is read-only and exits nonzero for stub engines, unavailable signup/email configuration,
+or a missing pass page. It does not prove email delivery, payment completion, or provider response quality.
+
+The readiness change includes migration `0006_readiness.sql`: it preserves the production scheduler's
+existing dispatch outbox and adds durable demo-pass records. Do not drop the outbox or deploy the older
+scheduler: that would remove the live duplicate-run protections. Pass API and MCP quotas are atomic,
+expiry survives cache eviction, and revocation disables both credentials. Query strings are redacted
+from native Worker logs because MCP pass URLs contain bearer credentials.
+
+Supply provider keys using the secure credential workflow, then verify one real answer from each
+configured engine before enabling scheduled customer runs. Perplexity requires its own key even when
+AI Gateway unified billing is enabled. Keep Stripe in test mode until live billing is explicitly approved;
+finish a sandbox signup, sign-in email, Checkout return, first run, report, and logout before launch.

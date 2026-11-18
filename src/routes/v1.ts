@@ -3,6 +3,7 @@ import type { Env } from "../env";
 import { TenantDB } from "../lib/db";
 import { HttpError, isDay, parseJson } from "../lib/util";
 import { resolveKey } from "../observability/ingest";
+import { trackPass } from "../lib/pass";
 import { Binds, runsCte, type Filters } from "../metrics/filters";
 import { chats, domainReport, loadBrands, urlReport } from "../metrics/report";
 
@@ -20,6 +21,7 @@ export const v1 = new Hono<V1Env>();
 
 v1.use("*", async (c, next) => {
   const key = await resolveKey(c.env, c.req.header("x-api-key") ?? null, ["read"]);
+  await trackPass(c.env, key.keyId, "api");
   await rateLimit(c.env, key.keyId);
   c.set("tdb", new TenantDB(c.env.DB, key.tenantId));
   await next();

@@ -1,12 +1,13 @@
 import { defineConfig } from "vitest/config";
-import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
+import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
+import { writeLocalConfig } from "./scripts/local-config.mjs";
 
 export default defineConfig(async () => {
   const migrations = await readD1Migrations("./migrations");
   return {
     plugins: [
       cloudflareTest({
-        wrangler: { configPath: "./wrangler.jsonc" },
+        wrangler: { configPath: writeLocalConfig(".tmp/wrangler.test.json") },
         remoteBindings: false,
         miniflare: {
           bindings: {
@@ -23,6 +24,6 @@ export default defineConfig(async () => {
         },
       }),
     ],
-    test: { include: ["test/**/*.test.ts"], setupFiles: ["./test/setup.ts"] },
+    test: { include: ["test/**/*.test.ts"], setupFiles: ["./test/setup.ts"], exclude: ["**/node_modules/**", "**/dist/**", "**/.tmp/**", "harness/**"] },
   };
 });
