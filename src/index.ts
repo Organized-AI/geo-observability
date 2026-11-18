@@ -10,6 +10,7 @@ import { rollupRecent } from "./metrics/rollup";
 import { aggregateUsage } from "./billing/hooks";
 import { stripeProvider } from "./billing/stripe";
 import { billingApi, signupApi, stripeWebhook } from "./routes/billing";
+import { passApi } from "./routes/pass";
 import { authApp } from "./routes/auth";
 import { serveWithBase } from "./lib/basepath";
 
@@ -41,6 +42,7 @@ app.route("/api/tenants", tenantsApi);
 app.route("/api/v1", v1);
 app.route("/auth", authApp);
 app.route("/api/signup", signupApi);
+app.route("/api/pass", passApi);
 app.route("/api/billing", billingApi);
 app.route("/api", portalApi);
 

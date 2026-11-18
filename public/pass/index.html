@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your visibility pass · GEO Observability</title>
+  <meta name="description" content="Connect Claude, Codex, Pi, Grok Bot, Dots or Hermes to a read-only GEO Observability demo pass. One paste connects it and runs a test.">
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233a49d6'/%3E%3Crect x='7' y='7' width='8' height='8' rx='2' fill='%23fff'/%3E%3Crect x='17' y='7' width='8' height='8' rx='2' fill='%23fff' opacity='.55'/%3E%3Crect x='7' y='17' width='8' height='8' rx='2' fill='%23fff' opacity='.55'/%3E%3Crect x='17' y='17' width='8' height='8' rx='2' fill='%23c6f062'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="/assets/base.css">
+  <style>
+    :root { --pass-max: 860px; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; }
+    .pass-top {
+      max-width: var(--pass-max); margin: 0 auto; padding: 22px 18px 0;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    }
+    .pass-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-family: var(--font-display); font-weight: 600; }
+    .pass-brand svg { width: 30px; height: 30px; }
+    .pass-meta { color: var(--text-3); font: 500 10px/1.4 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; }
+    .pass-nav { display: flex; gap: 14px; font-size: 13px; }
+    .pass-nav a { color: var(--text-2); text-decoration: none; }
+    .pass-nav a:hover { color: var(--text); }
+    .pass { max-width: var(--pass-max); margin: 0 auto; padding: 42px 18px 64px; }
+    .hero { margin-bottom: 28px; }
+    .eyebrow { margin: 0 0 10px; color: var(--signal); font: 600 11px/1.4 var(--font-mono); letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 0; font-family: var(--font-display); font-size: clamp(38px, 7vw, 66px); line-height: .96; letter-spacing: -.045em; text-wrap: balance; }
+    h1 em { color: var(--signal); font-style: normal; }
+    .lede { max-width: 62ch; margin: 18px 0 0; color: var(--text-2); font-size: 16px; line-height: 1.55; }
+    .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
+    .badges span, .usage span { border: 1px solid var(--border); border-radius: 999px; padding: 6px 11px; color: var(--text-2); font: 500 11px/1 var(--font-mono); }
+    .badges span:first-child { border-color: var(--accent); color: var(--accent); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 24px; margin: 0 0 18px; box-shadow: var(--shadow); }
+    .card h2 { margin: 0; font-family: var(--font-display); font-size: 21px; letter-spacing: -.02em; }
+    .card-lede { margin: 6px 0 18px; color: var(--text-2); font-size: 14px; line-height: 1.55; }
+    .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+    .card-head p { margin: 5px 0 0; color: var(--text-3); font-size: 13px; }
+    .link { border: 0; background: none; color: var(--text-3); font: 500 12px/1 var(--font-body); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; padding: 0; }
+    .link:hover { color: var(--text); }
+    .key-row { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--surface-2); border: 1px solid var(--border); border-radius: 11px; padding: 9px 10px; margin-bottom: 9px; }
+    .key-label { color: var(--text-3); font: 500 9px/1.2 var(--font-mono); letter-spacing: .12em; }
+    .key-row code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font: 500 12px/1.4 var(--font-mono); }
+    .key-row-wrap code { white-space: normal; overflow-wrap: anywhere; }
+    .copy, .btn, .btn-primary {
+      border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+      font: 600 11px/1 var(--font-body); padding: 8px 11px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .copy:hover, .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-primary { background: var(--signal); color: var(--signal-ink); border-color: var(--signal); }
+    .btn-primary:hover { background: var(--signal); color: var(--signal-ink); filter: brightness(1.06); }
+    .fine { margin: 12px 0 0; color: var(--text-3); font-size: 12px; line-height: 1.5; }
+    .usage { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+    .usage span { color: var(--text); border-color: var(--border-strong); }
+    .usage span[data-low="true"] { color: var(--warn); border-color: var(--warn); }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .tab { border: 1px solid var(--border); background: transparent; color: var(--text-2); border-radius: 999px; padding: 7px 12px; font: 500 11px/1 var(--font-body); cursor: pointer; }
+    .tab:hover { border-color: var(--border-strong); color: var(--text); }
+    .tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+    .panel { display: grid; gap: 12px; }
+    .panel p { margin: 0; color: var(--text-2); font-size: 13.5px; line-height: 1.55; }
+    .panel ol { margin: 0; padding-left: 20px; color: var(--text-2); font-size: 13.5px; line-height: 1.6; }
+    .block { position: relative; background: var(--surface-2); border: 1px solid var(--border); border-radius: 11px; padding: 14px 14px; }
+    .block pre { margin: 0; overflow-x: auto; color: var(--text); font: 400 12px/1.65 var(--font-mono); white-space: pre; }
+    .block .copy { position: absolute; top: 8px; right: 8px; padding: 6px 8px; font-size: 10px; }
+    .success { margin: 14px 0 0; border-radius: 10px; background: var(--pos-soft); color: var(--pos); padding: 11px 13px; font-size: 13px; line-height: 1.5; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .grid3 strong { display: block; margin-bottom: 4px; font-size: 13.5px; }
+    .grid3 p { margin: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.5; }
+    .note { border-radius: 10px; padding: 11px 13px; background: var(--warn-soft); color: var(--warn); font-size: 13px; line-height: 1.5; }
+    .pass-foot { max-width: var(--pass-max); margin: 0 auto; padding: 0 18px 40px; display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; color: var(--text-3); font-size: 12px; }
+    .pass-foot a { color: var(--text-2); }
+    [hidden] { display: none !important; }
+    @media (max-width: 640px) {
+      .pass { padding-top: 30px; }
+      .card { padding: 18px; }
+      .key-row { grid-template-columns: 1fr auto; }
+      .key-label { grid-column: 1 / -1; }
+      .grid3 { grid-template-columns: 1fr; }
+      .actions .btn, .actions .btn-primary { flex: 1 1 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header class="pass-top">
+    <a class="pass-brand" href="/" aria-label="GEO Observability home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><rect x="7" y="7" width="8" height="8" rx="2" fill="var(--accent-ink)"/><rect x="17" y="7" width="8" height="8" rx="2" fill="var(--accent-ink)" opacity=".55"/><rect x="7" y="17" width="8" height="8" rx="2" fill="var(--accent-ink)" opacity=".55"/><rect x="17" y="17" width="8" height="8" rx="2" fill="var(--signal)"/></svg>
+      <span>GEO Observability</span>
+    </a>
+    <span class="pass-meta">Visibility Pass · AI search observability</span>
+    <nav class="pass-nav"><a href="/docs/">Field guide</a><a href="/app/?tenant=demo">Open demo</a></nav>
+  </header>
+
+  <main class="pass">
+    <section class="hero">
+      <p class="eyebrow">Read-only demo pass</p>
+      <h1>Your own <em>visibility pass.</em></h1>
+      <p class="lede">Connect the AI tool you already use — Claude, Codex, Pi, Grok Bot, Dots or Hermes — to real AI search data. One paste connects it and runs a test. No sign-up, no card.</p>
+      <div class="badges"><span>200 API calls</span><span>50 MCP calls</span><span>14 days</span></div>
+    </section>
+
+    <section class="card" id="pass-card">
+      <div class="card-head">
+        <div><h2>Here's your pass</h2><p id="pass-sub">Creating your pass…</p></div>
+        <button type="button" class="link" id="new-pass">Use a different pass</button>
+      </div>
+      <div id="pass-error" class="note" hidden></div>
+      <div id="pass-body">
+        <div class="key-row key-row-wrap"><span class="key-label">API KEY</span><code id="api-key">…</code><button type="button" class="copy" data-copy-target="api-key">Copy</button></div>
+        <div class="key-row key-row-wrap"><span class="key-label">MCP URL</span><code id="mcp-url">…</code><button type="button" class="copy" data-copy-target="mcp-url">Copy</button></div>
+        <p class="fine">Keep both private. Anyone with the key or the MCP URL can read the demo workspace. The pass is read-only and expires after 14 days. The MCP URL already contains the pass, so there is no sign-in step.</p>
+        <div class="usage" id="usage"></div>
+        <div class="actions">
+          <button type="button" class="btn-primary" id="try-now">Try it now</button>
+          <a class="btn" id="playground" href="/app/?tenant=demo">Open the playground</a>
+          <a class="btn" href="/docs/api-introduction/">API reference</a>
+          <a class="btn" href="/docs/">Field guide</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="connect">
+      <h2>Connect your agent</h2>
+      <p class="card-lede">Pick your tool. Every block below already has your pass in it, so paste it exactly as it is.</p>
+      <div class="tabs" role="tablist" id="agent-tabs"></div>
+      <div class="panel" id="agent-panel"></div>
+    </section>
+
+    <section class="card" id="test">
+      <h2>Run the test</h2>
+      <p class="card-lede">Start a new chat with the agent, turn on the GEO Observability tools, then paste this. Allow the tools when asked.</p>
+      <div class="block"><pre id="test-prompt"></pre><button type="button" class="copy" data-copy-target="test-prompt">Copy</button></div>
+      <p class="success">✅ It worked if your agent lists the demo project, returns a brand table that includes <strong>Northwind Desk</strong>, and names three cited domains. This uses 3 MCP calls.</p>
+    </section>
+
+    <section class="card" id="code">
+      <h2>Call it from your own code</h2>
+      <p class="card-lede">Each snippet already has your key in it.</p>
+      <div class="tabs" role="tablist" id="code-tabs"></div>
+      <div class="panel" id="code-panel"></div>
+    </section>
+
+    <section class="card">
+      <h2>What's inside</h2>
+      <div class="grid3" style="margin-top:14px">
+        <div><strong>Brand report</strong><p>Visibility, share of voice, position and sentiment per brand, engine or day.</p></div>
+        <div><strong>Answers</strong><p>Recent AI answers, the brands they name and the sources they cite.</p></div>
+        <div><strong>Pages</strong><p>Citations, AI crawler hits, referrals and conversions joined to your pages.</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pass-foot">
+    <span>Demo data is fictional and read-only. Passes expire after 14 days.</span>
+    <span><a href="/docs/mcp-introduction/">MCP introduction</a> · <a href="/docs/mcp-setup/">MCP setup</a> · <a href="/docs/api-authentication/">API auth</a></span>
+  </footer>
+
+  <script src="/pass/pass.js" type="module"></script>
+</body>
+</html>

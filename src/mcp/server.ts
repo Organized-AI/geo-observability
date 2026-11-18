@@ -2,6 +2,7 @@ import type { Env } from "../env";
 import { TenantDB } from "../lib/db";
 import { HttpError, parseJson } from "../lib/util";
 import { resolveKey } from "../observability/ingest";
+import { resolvePassToken, trackPass } from "../lib/pass";
 import { rateLimit, brandReport, filtersFrom } from "../routes/v1";
 import { chats, domainReport, loadBrands } from "../metrics/report";
 import { pagesReport } from "../observability/pages";
@@ -128,11 +129,19 @@ export async function handleMcp(req: Request, env: Env): Promise<Response> {
   if (req.method === "DELETE") return new Response(null, { status: 204 });
   if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
   const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const passToken = new URL(req.url).searchParams.get("pass");
   let tdb: TenantDB;
   try {
-    const key = await resolveKey(env, bearer || null, ["read"]);
-    await rateLimit(env, key.keyId);
-    tdb = new TenantDB(env.DB, key.tenantId);
+    if (passToken) {
+      const record = await resolvePassToken(env, passToken);
+      await rateLimit(env, `pass:${record.id}`, 60);
+      tdb = new TenantDB(env.DB, record.tenant_id);
+    } else {
+      const key = await resolveKey(env, bearer || null, ["read"]);
+      await trackPass(env, key.keyId, "mcp");
+      await rateLimit(env, key.keyId);
+      tdb = new TenantDB(env.DB, key.tenantId);
+    }
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 401;
     return Response.json(rpcError(null, -32001, (e as Error).message), { status, headers: { "www-authenticate": 'Bearer realm="geo-observability"' } });

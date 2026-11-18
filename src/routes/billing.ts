@@ -112,7 +112,7 @@ signupApi.get("/", async (c) => {
     ? null
     : (keyProblem(c.env) ??
       (parseBillingConfig(c.env.STRIPE_BILLING_CONFIG) ? "Live Stripe keys need STRIPE_LIVE_MODE set to true." : "STRIPE_BILLING_CONFIG is missing or isn't valid JSON from the setup script."));
-  return c.json({ signed_in: !!who, email: who?.email ?? null, open, setup_problem, email_ready: mailerKind(c.env) !== "none", workspaces });
+  return c.json({ signed_in: !!who, email: who?.email ?? null, open, setup_problem, billing_mode: c.env.STRIPE_LIVE_MODE === "true" ? "live" : "test", email_ready: mailerKind(c.env) !== "none", workspaces });
 });
 
 /**

@@ -22,7 +22,7 @@
     "run_worker_first": true
   },
 
-  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "observability": { "enabled": true, "head_sampling_rate": 1, "redact_query_string": true },
 
   "vars": {
     "ENVIRONMENT": "production",

@@ -1,12 +1,12 @@
 import type { Env, RunJob } from "../env";
 import { getEngine } from "../engines/registry";
 import { TenantDB, type PromptRow } from "../lib/db";
-import { chunk, newId, today } from "../lib/util";
+import { chunk, newId, today, sha256Hex } from "../lib/util";
 import { progressStub } from "../durable/progress";
 import { runIdFor } from "./pipeline";
 
-export function instanceIdFor(job: RunJob): string {
-  return `${job.runId}-${job.passId}`.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 100);
+export async function instanceIdFor(job: RunJob): Promise<string> {
+  return `geo-run-${await sha256Hex(JSON.stringify([job.tenantId, job.runId]))}`;
 }
 
 /** Plan one pass for a project: every active prompt × enabled engine, in the prompt's country, within plan limits. */
@@ -45,35 +45,55 @@ export async function planPass(env: Env, tenantId: string, projectId: string, da
 /** Write queued rows, start the progress counter and hand the jobs to the queue. */
 export async function enqueuePass(env: Env, tenantId: string, projectId: string, day = today()): Promise<number> {
   const jobs = await planPass(env, tenantId, projectId, day);
-  if (!jobs.length) return 0;
   const tdb = new TenantDB(env.DB, tenantId);
+  // Atomic run + outbox reservation. Do not reset existing running/completed/failed rows.
+  // The outbox makes interrupted/failed sends recoverable on the next scheduler replay.
   for (const part of chunk(jobs, 50)) {
-    await tdb.batch(
-      part.map((j) =>
-        tdb.prepare(
-          `INSERT INTO runs (id, tenant_id, project_id, prompt_id, engine, country, run_date, status)
-           VALUES (?2, ?1, ?3, ?4, ?5, ?6, ?7, 'queued')
-           ON CONFLICT(id) DO UPDATE SET status = 'queued', error = NULL WHERE runs.tenant_id = ?1`,
-          j.runId,
-          j.projectId,
-          j.promptId,
-          j.engine,
-          j.country,
-          j.runDate,
-        ),
-      ),
-    );
+    await tdb.batch(part.flatMap((j) => [
+      tdb.prepare(
+        `INSERT OR IGNORE INTO run_dispatch_outbox (tenant_id, run_id, project_id, payload)
+         SELECT ?1, ?2, ?3, ?4 WHERE NOT EXISTS (SELECT 1 FROM runs WHERE id = ?2)`,
+        j.runId, j.projectId, JSON.stringify(j)),
+      tdb.prepare(
+        `INSERT OR IGNORE INTO runs (id, tenant_id, project_id, prompt_id, engine, country, run_date, status)
+         VALUES (?2, ?1, ?3, ?4, ?5, ?6, ?7, 'queued')`,
+        j.runId, j.projectId, j.promptId, j.engine, j.country, j.runDate)
+    ]));
   }
-  await progressStub(env, projectId).start(jobs[0].passId, jobs.length);
-  for (const part of chunk(jobs, 100)) await env.RUNS.sendBatch(part.map((body) => ({ body })));
-  return jobs.length;
+  const pending = await tdb.all<{ run_id: string; payload: string }>(
+    `SELECT run_id, payload FROM run_dispatch_outbox
+     WHERE tenant_id = ?1 AND project_id = ?2 AND sent_at IS NULL ORDER BY created_at, run_id`, projectId);
+  const groups = new Map<string, RunJob[]>();
+  for (const row of pending) {
+    const job = JSON.parse(row.payload) as RunJob;
+    const group = groups.get(job.passId) ?? [];
+    group.push(job); groups.set(job.passId, group);
+  }
+  let sent = 0;
+  for (const [passId, group] of groups) {
+    await progressStub(env, projectId).start(passId, group.length);
+    for (const part of chunk(group, 100)) {
+      await env.RUNS.sendBatch(part.map((body) => ({ body })));
+      // Send then mark, so an ambiguous response can replay delivery but never lose a run.
+      // Stable workflow IDs below absorb concurrent delivery and crash-window retries.
+      await tdb.batch(part.map((j) => tdb.prepare(
+        `UPDATE run_dispatch_outbox SET sent_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE tenant_id = ?1 AND run_id = ?2 AND sent_at IS NULL`, j.runId)));
+      sent += part.length;
+    }
+  }
+  return sent;
 }
 
-/** Queue consumer: start one Workflow instance per job. The instance id makes duplicates harmless. */
 export async function consumeRuns(batch: MessageBatch<RunJob>, env: Env): Promise<void> {
   for (const msg of batch.messages) {
     try {
-      await env.RUN_PROMPT.create({ id: instanceIdFor(msg.body), params: msg.body });
+      const existing = await env.DB.prepare(
+        "SELECT status FROM runs WHERE tenant_id = ?1 AND id = ?2"
+      ).bind(msg.body.tenantId, msg.body.runId).first();
+      // A stale delivery must not restart completed/failed/running work after workflow retention expires.
+      if (!existing || existing.status !== "queued") { msg.ack(); continue; }
+      await env.RUN_PROMPT.create({ id: await instanceIdFor(msg.body), params: msg.body });
       msg.ack();
     } catch (e) {
       const text = String((e as Error)?.message ?? e);
@@ -82,6 +102,7 @@ export async function consumeRuns(batch: MessageBatch<RunJob>, env: Env): Promis
     }
   }
 }
+
 
 /** Cron: start the daily (and on Mondays, weekly) passes for every active project. */
 export async function scheduleDuePasses(env: Env, now = new Date()): Promise<number> {
