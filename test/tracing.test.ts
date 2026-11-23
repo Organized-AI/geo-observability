@@ -189,3 +189,128 @@ describe("OTLP ingest", () => {
     expect(appsB.results.map((r) => r.name)).toEqual(["support-bot-prod"]);
   });
 });
+
+describe("tracing API", () => {
+  const get = <T = any>(path: string, tenant = "trace-a") => call<T>("GET", `/api/tracing${path}`, undefined, tenant);
+
+  beforeAll(async () => {
+    // 25 small traces a second apart in their own app, with two sessions, one failure and one slow trace.
+    const specs: SpanSpec[] = [];
+    for (let i = 0; i < 25; i++) {
+      specs.push({
+        trace: 0xe000 + i, span: 1, name: i === 7 ? "refund_request" : "chat_turn", start: 10_000 + i * 1000, dur: i === 20 ? 9000 : 300,
+        attrs: { "openinference.span.kind": "LLM", "llm.model_name": i % 2 ? "gpt-5-mini" : "sonar", "llm.token_count.total": 10, "input.value": `question ${i} about 50%_off`, "output.value": `answer ${i}`, ...(i < 6 ? { "session.id": i < 4 ? "s-one" : "s-two", "user.id": "u1" } : {}) },
+        ...(i === 3 ? { error: "rate limited" } : {}),
+      });
+    }
+    expect((await sendJson(keyA, otlpJson(specs, { "service.name": "paging-app" }))).status).toBe(200);
+  });
+
+  it("lists apps with trace counts for this workspace only", async () => {
+    const a = await get("/apps");
+    expect(a.status).toBe(200);
+    const byName = Object.fromEntries(a.json.map((x: any) => [x.name, x.trace_count]));
+    expect(byName["paging-app"]).toBe(25);
+    expect(byName["support-bot-prod"]).toBe(1);
+    const b = await get("/apps", "trace-b");
+    expect(b.json.map((x: any) => x.name)).toEqual(["support-bot-prod"]);
+  });
+
+  it("pages through every trace once, newest first", async () => {
+    const app = (await get("/apps")).json.find((x: any) => x.name === "paging-app").id;
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const r: { status: number; json: any } = await get(`/traces?app=${app}&limit=10${cursor ? `&cursor=${cursor}` : ""}`);
+      expect(r.status).toBe(200);
+      if (!cursor) expect(r.json.totals).toMatchObject({ traces: 25, errors: 1, total_tokens: 250 });
+      else expect(r.json.totals).toBeNull();
+      seen.push(...r.json.items.map((t: any) => t.trace_id));
+      cursor = r.json.next_cursor;
+      pages++;
+    } while (cursor && pages < 10);
+    expect(pages).toBe(3);
+    expect(seen).toHaveLength(25);
+    expect(new Set(seen).size).toBe(25);
+    expect(seen[0]).toBe(hex(0xe000 + 24, 32));
+    expect(seen[24]).toBe(hex(0xe000, 32));
+    expect((await get("/traces?cursor=garbage")).status).toBe(400);
+  });
+
+  it("filters by status, text, session, model, latency and date", async () => {
+    const app = (await get("/apps")).json.find((x: any) => x.name === "paging-app").id;
+    const ids = async (qs: string) => (await get(`/traces?app=${app}&limit=200&${qs}`)).json.items.map((t: any) => parseInt(t.trace_id.slice(-4), 16) - 0xe000);
+    expect(await ids("status=error")).toEqual([3]);
+    expect((await ids("status=ok")).length).toBe(24);
+    expect(await ids("q=refund")).toEqual([7]);
+    expect(await ids("q=answer%2012")).toEqual([12]);
+    // % and _ in a search are literal characters, not wildcards.
+    expect((await ids("q=50%25_off")).length).toBe(25);
+    expect(await ids("q=5_%25off")).toEqual([]);
+    expect(await ids(`q=${hex(0xe000 + 9, 32).toUpperCase()}`)).toEqual([9]);
+    expect(await ids("session=s-two")).toEqual([5, 4]);
+    expect((await ids("model=sonar")).length).toBe(13);
+    expect(await ids("min_ms=5000")).toEqual([20]);
+    expect((await ids("from=2026-11-20&to=2026-11-20")).length).toBe(25);
+    expect(await ids("from=2026-11-21")).toEqual([]);
+    expect(await ids("to=2026-11-19")).toEqual([]);
+    expect((await get("/traces?from=2026-11-21&to=2026-11-20")).status).toBe(400);
+    expect((await get("/traces?status=weird")).status).toBe(400);
+  });
+
+  it("returns a trace with its spans in start order and span bodies on demand", async () => {
+    const r = await get(`/traces/${TRACE}`);
+    expect(r.status).toBe(200);
+    expect(r.json.trace).toMatchObject({ trace_id: TRACE, app: "support-bot-prod", name: "answer_question", latency_ms: 2500, span_count: 3 });
+    expect(r.json.spans.map((s: any) => s.name)).toEqual(["answer_question", "ChatCompletion", "search_docs"]);
+    expect(r.json.spans[0].attributes).toBeUndefined();
+    expect(r.json.spans_truncated).toBe(false);
+
+    const llm = await get(`/traces/${TRACE}/spans/00f067aa0ba902b7`);
+    expect(llm.json).toMatchObject({ kind: "LLM", model: "gpt-5-mini", provider: "openai", prompt_tokens: 812, cost_micros: 1234, truncated: false });
+    expect(llm.json.input_messages.map((m: any) => m.role)).toEqual(["system", "user"]);
+    expect(llm.json.output_messages[0].tool_calls[0].name).toBe("search_docs");
+    expect(llm.json.attributes["llm.model_name"]).toBe("gpt-5-mini");
+    expect(llm.json.events).toEqual([{ name: "first_token", time_ms: 1763900000400, attributes: { n: 1 } }]);
+    const tool = await get(`/traces/${TRACE}/spans/53995c3f42cd8ad8`);
+    expect(tool.json).toMatchObject({ status_code: "ERROR", status_message: "index timeout" });
+
+    expect((await get(`/traces/${hex(0xdead, 32)}`)).status).toBe(404);
+    expect((await get("/traces/not-a-trace-id")).status).toBe(404);
+    expect((await get(`/traces/${TRACE}/spans/${hex(0xdead, 16)}`)).status).toBe(404);
+  });
+
+  it("groups traces into sessions", async () => {
+    const app = (await get("/apps")).json.find((x: any) => x.name === "paging-app").id;
+    const s = await get(`/sessions?app=${app}`);
+    expect(s.json.map((x: any) => [x.session_id, x.traces, x.errors, x.total_tokens])).toEqual([["s-two", 2, 0, 20], ["s-one", 4, 1, 40]]);
+    expect(s.json[1]).toMatchObject({ first_input: "question 0 about 50%_off", last_output: "answer 3", user_id: "u1" });
+  });
+
+  it("never returns another workspace's traces or spans", async () => {
+    // Workspace B holds only the fixture trace; A's other traces are invisible to it by id and by listing.
+    expect((await get("/traces?limit=200", "trace-b")).json.items.map((t: any) => t.trace_id)).toEqual([TRACE]);
+    expect((await get(`/traces/${hex(0xe000, 32)}`, "trace-b")).status).toBe(404);
+    expect((await get(`/traces/${hex(0xe000, 32)}/spans/${hex(1, 16)}`, "trace-b")).status).toBe(404);
+    const appA = (await get("/apps")).json.find((x: any) => x.name === "paging-app").id;
+    expect((await get(`/traces?app=${appA}`, "trace-b")).json.items).toEqual([]);
+    expect((await call("DELETE", `/api/tracing/apps/${appA}`, undefined, "trace-b")).status).toBe(404);
+    expect((await get("/apps")).json.find((x: any) => x.name === "paging-app").trace_count).toBe(25);
+  });
+
+  it("says where to send traces", async () => {
+    const s = await get("/setup");
+    expect(s.json).toMatchObject({ endpoint: "https://geo.test/ingest/otlp", traces_url: "https://geo.test/ingest/otlp/v1/traces", key_header: "x-ingest-key" });
+  });
+
+  it("lets an owner delete an app with its traces and spans", async () => {
+    const appA = (await get("/apps")).json.find((x: any) => x.name === "paging-app").id;
+    const before = await spanCount(tenantA);
+    expect((await call("DELETE", `/api/tracing/apps/${appA}`, undefined, "trace-a")).status).toBe(200);
+    expect(await spanCount(tenantA)).toBe(before - 25);
+    expect((await get("/apps")).json.some((x: any) => x.name === "paging-app")).toBe(false);
+    expect((await get(`/traces/${hex(0xe000, 32)}`)).status).toBe(404);
+    expect(await spanCount(tenantB)).toBe(3);
+  });
+});

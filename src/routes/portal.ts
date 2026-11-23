@@ -16,6 +16,7 @@ import { emailFailureReason, mailerKind, parseFrom, sendMail } from "../lib/mail
 import { STARTER_MODEL_LIMIT } from "./billing";
 import { appOrigin } from "../billing/config";
 import { TenantDB, type BrandRow, type ProjectRow, type PromptRow } from "../lib/db";
+import { tracingApi } from "./tracing";
 
 export type AppEnv = { Bindings: Env; Variables: { session: Session } };
 
@@ -1024,6 +1025,10 @@ api.get("/projects/:pid/tracking", async (c) => {
     sgtm: { endpoint: `${origin}/ingest/conversion`, headers: { "content-type": "application/json", "x-ingest-key": "YOUR_INGEST_KEY" }, project_id: p.id },
   });
 });
+
+// ------------------------------------------------------------------ LLM tracing
+
+api.route("/tracing", tracingApi);
 
 export { api as portalApi };
 
