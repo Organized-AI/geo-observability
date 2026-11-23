@@ -6,6 +6,8 @@ import { clamp, HttpError, isDay, newId } from "../lib/util";
 import { deleteApp, getSpan, getTrace, listApps, listPeople, listSessions, listTraces, traceTotals, type TraceFilters } from "../tracing/query";
 import { LIMITS } from "../tracing/store";
 import { MAX_BODY_BYTES } from "../tracing/otlp";
+import { peopleCsv, tracesCsv, tracesJsonl } from "../tracing/export";
+import { retentionDays, retentionStatus } from "../tracing/retention";
 import type { AppEnv } from "./portal";
 
 export const tracingApi = new Hono<AppEnv>();
@@ -87,8 +89,32 @@ tracingApi.get("/setup", (c) => {
     key_header: "x-ingest-key",
     app_header: "x-project-name",
     installer_url: `${origin}/trace/geo-trace.mjs`,
+    retention_days: retentionDays(c.env),
     limits: { body_mb: MAX_BODY_BYTES / 1024 / 1024, spans_per_request: LIMITS.spansPerRequest, apps: LIMITS.appsPerTenant, requests_per_minute: 600 },
   });
+});
+
+tracingApi.get("/retention", async (c) => c.json(await retentionStatus(c.get("session").tdb, c.env)));
+
+// ------------------------------------------------------------------ exports (keep a local copy)
+
+const stamp = () => new Date().toISOString().slice(0, 10);
+const download = (name: string, type: string) => ({ "content-type": type, "content-disposition": `attachment; filename="${name}"` });
+
+tracingApi.get("/export/traces.csv", async (c) => {
+  const f = filtersFrom(new URL(c.req.url).searchParams);
+  const { csv, truncated } = await tracesCsv(c.get("session").tdb, { ...f, cursor: undefined });
+  return new Response(csv, { headers: { ...download(`traces-${stamp()}.csv`, "text/csv; charset=utf-8"), "x-export-truncated": truncated ? "true" : "false" } });
+});
+
+tracingApi.get("/export/traces.jsonl", (c) => {
+  const f = filtersFrom(new URL(c.req.url).searchParams);
+  return new Response(tracesJsonl(c.get("session").tdb, { ...f, cursor: undefined }), { headers: download(`traces-${stamp()}.jsonl`, "application/x-ndjson; charset=utf-8") });
+});
+
+tracingApi.get("/export/people.csv", async (c) => {
+  const f = filtersFrom(new URL(c.req.url).searchParams);
+  return new Response(await peopleCsv(c.get("session").tdb, { appId: f.appId, fromMs: f.fromMs, toMs: f.toMs }), { headers: download(`people-${stamp()}.csv`, "text/csv; charset=utf-8") });
 });
 
 tracingApi.delete("/apps/:id", async (c) => {

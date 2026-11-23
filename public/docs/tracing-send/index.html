@@ -167,6 +167,7 @@ provider.register();
 <li>Protobuf and JSON bodies are accepted, with gzip or deflate compression.</li>
 </ul>
 <p>Sending the same span twice is safe: the second copy is ignored.</p>
+<p>Traces are kept for 92 days, then deleted. Export them from the Traces page to keep a copy.</p>
 <h2 id="what-youre-storing"><a class="anchor" href="#what-youre-storing" aria-hidden="true" tabindex="-1">#</a>What you&#39;re storing</h2>
 <p>Traces usually contain what your users typed and what your app answered. Send only what you&#39;re allowed to keep. OpenInference instrumentors can hide inputs and outputs with settings such as <code>OPENINFERENCE_HIDE_INPUTS</code> and <code>OPENINFERENCE_HIDE_OUTPUTS</code>.</p>
 

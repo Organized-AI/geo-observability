@@ -14,6 +14,7 @@ import { authApp } from "./routes/auth";
 import { serveWithBase } from "./lib/basepath";
 import { exportResponse, readExport } from "./tracing/otlp";
 import { ingestSpans } from "./tracing/store";
+import { pruneTraces } from "./tracing/retention";
 
 export { RunPromptWorkflow, InsightsWorkflow } from "./workflows/run-prompt";
 export { RunProgress } from "./durable/progress";
@@ -124,7 +125,7 @@ export default {
         ctx.waitUntil(scheduleInsights(env, when));
         break;
       default:
-        ctx.waitUntil(Promise.all([rollupRecent(env, when), aggregateUsage(env, stripeProvider(env))]));
+        ctx.waitUntil(Promise.all([rollupRecent(env, when), aggregateUsage(env, stripeProvider(env)), pruneTraces(env, when)]));
     }
   },
 } satisfies ExportedHandler<Env, RunJob>;

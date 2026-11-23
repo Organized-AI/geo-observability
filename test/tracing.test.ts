@@ -2,6 +2,8 @@ import { env as rawEnv, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { Env } from "../src/env";
 import { fitAttributes, LIMITS } from "../src/tracing/store";
+import { TenantDB } from "../src/lib/db";
+import { pruneTenant, pruneTraces, retentionDays } from "../src/tracing/retention";
 import { b64ToBytes, OTLP_JSON, OTLP_PROTOBUF_B64, OTLP_PROTOBUF_GZIP_B64 } from "./fixtures/otlp";
 
 const env = rawEnv as unknown as Env;
@@ -319,6 +321,89 @@ describe("tracing API", () => {
     expect((await get("/apps")).json.find((x: any) => x.name === "paging-app").trace_count).toBe(25);
   });
 
+  it("exports traces as a CSV summary and as full JSON Lines", async () => {
+    const raw = async (path: string, tenant = "trace-a") => {
+      const res = await SELF.fetch(`https://geo.test/api/tracing${path}`, { headers: { "x-tenant": tenant } });
+      return { status: res.status, type: res.headers.get("content-type"), disposition: res.headers.get("content-disposition"), truncated: res.headers.get("x-export-truncated"), text: await res.text() };
+    };
+    const app = (await get("/apps")).json.find((x: any) => x.name === "paging-app").id;
+    const csv = await raw(`/export/traces.csv?app=${app}`);
+    expect(csv.status).toBe(200);
+    expect(csv.type).toContain("text/csv");
+    expect(csv.disposition).toMatch(/^attachment; filename="traces-\d{4}-\d{2}-\d{2}\.csv"$/);
+    expect(csv.truncated).toBe("false");
+    const lines = csv.text.trim().split("\n");
+    expect(lines[0]).toBe("started_at,app,name,kind,status,user,session,latency_ms,spans,model_calls,errors,prompt_tokens,completion_tokens,total_tokens,cost_usd,model,trace_id,input,output");
+    expect(lines).toHaveLength(26);
+    expect(lines[1]).toBe(`2026-11-20T12:00:34.000Z,paging-app,chat_turn,LLM,OK,,,300,1,1,0,0,0,10,,sonar,${hex(0xe000 + 24, 32)},question 24 about 50%_off,answer 24`);
+    expect(lines.filter((l) => l.includes(",ERROR,"))).toHaveLength(1);
+    // The same filters as the list apply.
+    expect((await raw(`/export/traces.csv?app=${app}&status=error`)).text.trim().split("\n")).toHaveLength(2);
+    expect((await raw(`/export/traces.csv?user=u1`)).text.trim().split("\n")).toHaveLength(7);
+    expect((await raw("/export/traces.csv?status=nope")).status).toBe(400);
+
+    const jsonl = await raw(`/export/traces.jsonl?q=${TRACE}`);
+    expect(jsonl.status).toBe(200);
+    expect(jsonl.type).toContain("application/x-ndjson");
+    const rows = jsonl.text.trim().split("\n").map((l) => JSON.parse(l));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ trace_id: TRACE, app: "support-bot-prod", name: "answer_question", started_at: "2025-11-23T12:13:20.000Z", span_count: 3, total_tokens: 908 });
+    expect(rows[0].spans.map((s: any) => s.name)).toEqual(["answer_question", "ChatCompletion", "search_docs"]);
+    expect(rows[0].spans[1]).toMatchObject({ kind: "LLM", model: "gpt-5-mini", truncated: false, attributes: { "llm.model_name": "gpt-5-mini", "llm.token_count.prompt": 812 }, events: [{ name: "first_token" }] });
+    expect(rows[0].spans[2]).toMatchObject({ status_code: "ERROR", status_message: "index timeout" });
+    // More than one page of traces streams through complete, each with its spans.
+    const all = (await raw(`/export/traces.jsonl?app=${app}`)).text.trim().split("\n").map((l) => JSON.parse(l));
+    expect(all).toHaveLength(25);
+    expect(new Set(all.map((r: any) => r.trace_id)).size).toBe(25);
+    expect(all.every((r: any) => r.spans.length === 1 && r.spans[0].attributes["input.value"].startsWith("question "))).toBe(true);
+
+    const people = await raw("/export/people.csv");
+    expect(people.text.trim().split("\n").slice(0, 2)).toEqual(["person,tools,sessions,turns,active_days,prompt_tokens,completion_tokens,total_tokens,cost_usd,errors,last_active_at", "user-7,support-bot-prod,1,1,1,812,96,908,0.001234,1,2025-11-23T12:13:22.500Z"]);
+
+    // Another workspace exports only its own.
+    expect((await raw("/export/traces.csv", "trace-b")).text.trim().split("\n")).toHaveLength(2);
+    expect((await raw(`/export/traces.jsonl?app=${app}`, "trace-b")).text).toBe("");
+    expect((await raw("/export/people.csv", "trace-b")).text.trim().split("\n")).toHaveLength(2);
+  });
+
+  it("deletes traces older than a quarter and nothing else", async () => {
+    expect(retentionDays({})).toBe(92);
+    expect(retentionDays({ TRACE_RETENTION_DAYS: "30" })).toBe(30);
+    expect(retentionDays({ TRACE_RETENTION_DAYS: "soon" })).toBe(92);
+    const DAY = 86_400_000;
+    const old = (trace: number, daysAgo: number): SpanSpec[] => [
+      { trace, span: 1, name: "old_run", start: -daysAgo * DAY, dur: 500, attrs: { "openinference.span.kind": "CHAIN", "user.id": "old-timer" } },
+      { trace, span: 2, parent: 1, name: "old_llm", start: -daysAgo * DAY + 10, dur: 100, attrs: { "openinference.span.kind": "LLM", "llm.token_count.total": 5 } },
+    ];
+    expect((await sendJson(keyA, otlpJson([...old(0xf001, 93), ...old(0xf002, 200), ...old(0xf003, 91)], { "service.name": "aging-app" }))).status).toBe(200);
+    expect((await sendJson(keyB, otlpJson(old(0xf004, 150), { "service.name": "aging-app" }))).status).toBe(200);
+    const now = BASE; // "today" for this test is the day the paging traces were sent
+    const status = (await get("/retention")).json;
+    expect(status).toMatchObject({ days: 92 });
+    expect(status.oldest_ms).toBe(1763900000000); // the fixture trace, from a year earlier
+    expect(status.traces).toBeGreaterThan(30);
+
+    const before = { a: await spanCount(tenantA), b: await spanCount(tenantB) };
+    // One workspace at a time: B's expired trace is untouched when A is pruned.
+    // In A: the 93 and 200 day old traces, and the fixture trace, which is a year old.
+    expect(await pruneTenant(new TenantDB(env.DB, tenantA), now - 92 * DAY)).toBe(3);
+    expect(await spanCount(tenantA)).toBe(before.a - 4 - 3);
+    expect(await spanCount(tenantB)).toBe(before.b);
+    expect((await get(`/traces/${hex(0xf001, 32)}`)).status).toBe(404);
+    expect((await get(`/traces/${hex(0xf002, 32)}`)).status).toBe(404);
+    expect((await get(`/traces/${TRACE}`)).status).toBe(404);
+    expect((await get(`/traces/${hex(0xf003, 32)}`)).json.spans).toHaveLength(2);
+    expect((await get(`/traces/${hex(0xe000, 32)}`)).status).toBe(200);
+    expect(await pruneTenant(new TenantDB(env.DB, tenantA), now - 92 * DAY)).toBe(0);
+
+    // The scheduled job covers every workspace: B still holds its fixture trace and a 150 day old one.
+    expect(await pruneTraces(env, new Date(now))).toBe(2);
+    expect(await spanCount(tenantB)).toBe(0);
+    expect(await spanCount(tenantA)).toBe(before.a - 7);
+    expect((await get(`/traces/${hex(0xf003, 32)}`)).status).toBe(200);
+    expect((await get("/apps")).json.find((x: any) => x.name === "paging-app").trace_count).toBe(25);
+  });
+
   it("says where to send traces", async () => {
     const s = await get("/setup");
     expect(s.json).toMatchObject({ endpoint: "https://geo.test/ingest/otlp", traces_url: "https://geo.test/ingest/otlp/v1/traces", key_header: "x-ingest-key" });
@@ -331,6 +416,6 @@ describe("tracing API", () => {
     expect(await spanCount(tenantA)).toBe(before - 25);
     expect((await get("/apps")).json.some((x: any) => x.name === "paging-app")).toBe(false);
     expect((await get(`/traces/${hex(0xe000, 32)}`)).status).toBe(404);
-    expect(await spanCount(tenantB)).toBe(3);
+    expect(await spanCount(tenantB)).toBe(0);
   });
 });

@@ -36,6 +36,26 @@ The link to a trace includes the selected step, so you can share exactly what yo
 
 The **Sessions** tab groups runs that share a `session.id`. Select one to see its turns. If the tab is empty, your app isn't setting a session on its spans yet.
 
-## Removing traces
+## How long traces are kept
 
-An owner can delete an app with all of its traces through the API (`DELETE /api/tracing/apps/<app id>`). There's no button for this in the portal yet, and traces aren't removed automatically after a set time.
+Traces are kept for **92 days** (one quarter). After that they're deleted with all of their steps, and can't be brought back.
+
+When traces are within 14 days of being deleted, the Traces page says how many and from before which date.
+
+## Save a copy on your computer
+
+Use **Export** at the top of the Traces page. It saves what's on screen: the date range, app, person, search and Errors filter all apply.
+
+| File | What's in it | Good for |
+| --- | --- | --- |
+| Traces (CSV) | One row per trace: when, app, person, session, latency, steps, tokens, cost, model, and the start of the input and output | Spreadsheets, quarterly reporting |
+| Full traces (JSON Lines) | One trace per line with every step, its attributes and events | A complete archive, or loading into another tool |
+| People (CSV) | One row per person: tools, sessions, turns, tokens, last active | Usage by person for the period |
+
+To keep everything, export the full traces once a quarter with the date range set to that quarter. A CSV holds up to 50,000 traces and a JSON Lines file up to 10,000; for more, export a shorter date range at a time.
+
+The files contain whatever your apps and tools sent, including prompts and answers. Store them as carefully as the originals.
+
+## Removing traces sooner
+
+An owner can delete an app with all of its traces through the API (`DELETE /api/tracing/apps/<app id>`). There's no button for this in the portal yet.

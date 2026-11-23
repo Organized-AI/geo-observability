@@ -517,6 +517,7 @@ mark.mark-own { background: var(--mark-own); color: inherit; border-radius: 4px;
 }
 @media (max-width: 640px) {
   .tbl .hide-sm { display: none; }
+  .tr-export .menu-panel { left: 0; right: auto; max-width: calc(100vw - 32px); }
   .show-sm { display: inline; }
   .tr-name { min-width: 120px; }
   .tbl td, .tbl th { padding-left: 10px; padding-right: 10px; }

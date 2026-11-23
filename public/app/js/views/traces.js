@@ -1,7 +1,7 @@
 // Traces: runs of the client's own LLM apps, sent over OTLP. A list with filters, sessions, and a trace page
 // with the span tree, a timeline and the detail of each span.
 import { h, clear, fmt, plural, isNumber, badge, segmented, tabs, table, skeleton, errorBox, empty, drawer, copyBtn, icon } from "../dom.js";
-import { api } from "../api.js";
+import { api, linkUrl } from "../api.js";
 import { reveal } from "../anim.js";
 import { pageHead } from "./common.js";
 
@@ -94,7 +94,16 @@ async function traceList(ctx) {
   const session = ctx.q.get("session") || "";
   const person = ctx.q.get("user") || "";
   const sendBtn = h("button", { type: "button", class: "btn", onclick: openSetup }, icon("plus"), "Send traces");
-  ctx.el.append(pageHead("Traces", "Every run of your LLM apps and coding tools: the model calls, tools and retrievals behind each answer.", sendBtn));
+  // Downloads use the filters on screen, so what you see is what you save.
+  const exportQ = { from: ctx.f.from, to: ctx.f.to, app, status: st, q: search, session, user: person };
+  for (const k of Object.keys(exportQ)) if (!exportQ[k]) delete exportQ[k];
+  const peopleQ = { from: ctx.f.from, to: ctx.f.to, ...(app ? { app } : {}) };
+  const exportMenu = h("details", { class: "menu tr-export" }, h("summary", { class: "btn" }, icon("download"), "Export"),
+    h("div", { class: "menu-panel" },
+      h("a", { class: "menu-item", href: linkUrl("/api/tracing/export/traces.csv", exportQ), download: "" }, icon("download"), "Traces, one row each (CSV)"),
+      h("a", { class: "menu-item", href: linkUrl("/api/tracing/export/traces.jsonl", exportQ), download: "" }, icon("download"), "Full traces with every step (JSON Lines)"),
+      h("a", { class: "menu-item", href: linkUrl("/api/tracing/export/people.csv", peopleQ), download: "" }, icon("download"), "People (CSV)")));
+  ctx.el.append(pageHead("Traces", "Every run of your LLM apps and coding tools: the model calls, tools and retrievals behind each answer.", exportMenu, sendBtn));
 
   const box = h("div", null, skeleton(6));
   ctx.el.append(box);
@@ -126,7 +135,16 @@ async function traceList(ctx) {
       h("button", { type: "button", class: "btn btn-sm", onclick: () => ctx.setQuery({ user: null }) }, "Show everyone")));
   }
   const body = h("div", null, skeleton(8));
-  box.append(body);
+  const keep = h("p", { class: "small muted tr-foot" });
+  box.append(body, keep);
+  api("tracing/retention").then((r) => {
+    if (!ctx.alive() || !r) return;
+    if (r.expiring_in_14_days > 0) {
+      box.insertBefore(h("p", { class: "notice notice-warn" }, icon("alert"),
+        h("span", null, `${plural(r.expiring_in_14_days, "trace")} from before ${fmt.dateLong(new Date(r.expiring_before_ms).toISOString().slice(0, 10))} will be deleted within 14 days. Export them first if you want to keep a copy.`)), body);
+    }
+    keep.textContent = `Traces are kept for ${r.days} days (one quarter), then deleted. Use Export to save a copy on your computer.`;
+  }).catch(() => {});
   if (tab === "sessions") return sessionList(ctx, body, app);
   if (tab === "people") return peopleList(ctx, body, app);
 

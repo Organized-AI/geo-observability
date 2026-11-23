@@ -76,14 +76,46 @@
 <p>The link to a trace includes the selected step, so you can share exactly what you&#39;re looking at with a teammate in the same workspace.</p>
 <h2 id="conversations"><a class="anchor" href="#conversations" aria-hidden="true" tabindex="-1">#</a>Conversations</h2>
 <p>The <strong>Sessions</strong> tab groups runs that share a <code>session.id</code>. Select one to see its turns. If the tab is empty, your app isn&#39;t setting a session on its spans yet.</p>
-<h2 id="removing-traces"><a class="anchor" href="#removing-traces" aria-hidden="true" tabindex="-1">#</a>Removing traces</h2>
-<p>An owner can delete an app with all of its traces through the API (<code>DELETE /api/tracing/apps/&lt;app id&gt;</code>). There&#39;s no button for this in the portal yet, and traces aren&#39;t removed automatically after a set time.</p>
+<h2 id="how-long-traces-are-kept"><a class="anchor" href="#how-long-traces-are-kept" aria-hidden="true" tabindex="-1">#</a>How long traces are kept</h2>
+<p>Traces are kept for <strong>92 days</strong> (one quarter). After that they&#39;re deleted with all of their steps, and can&#39;t be brought back.</p>
+<p>When traces are within 14 days of being deleted, the Traces page says how many and from before which date.</p>
+<h2 id="save-a-copy-on-your-computer"><a class="anchor" href="#save-a-copy-on-your-computer" aria-hidden="true" tabindex="-1">#</a>Save a copy on your computer</h2>
+<p>Use <strong>Export</strong> at the top of the Traces page. It saves what&#39;s on screen: the date range, app, person, search and Errors filter all apply.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>What&#39;s in it</th>
+<th>Good for</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Traces (CSV)</td>
+<td>One row per trace: when, app, person, session, latency, steps, tokens, cost, model, and the start of the input and output</td>
+<td>Spreadsheets, quarterly reporting</td>
+</tr>
+<tr>
+<td>Full traces (JSON Lines)</td>
+<td>One trace per line with every step, its attributes and events</td>
+<td>A complete archive, or loading into another tool</td>
+</tr>
+<tr>
+<td>People (CSV)</td>
+<td>One row per person: tools, sessions, turns, tokens, last active</td>
+<td>Usage by person for the period</td>
+</tr>
+</tbody></table>
+</div>
+<p>To keep everything, export the full traces once a quarter with the date range set to that quarter. A CSV holds up to 50,000 traces and a JSON Lines file up to 10,000; for more, export a shorter date range at a time.</p>
+<p>The files contain whatever your apps and tools sent, including prompts and answers. Store them as carefully as the originals.</p>
+<h2 id="removing-traces-sooner"><a class="anchor" href="#removing-traces-sooner" aria-hidden="true" tabindex="-1">#</a>Removing traces sooner</h2>
+<p>An owner can delete an app with all of its traces through the API (<code>DELETE /api/tracing/apps/&lt;app id&gt;</code>). There&#39;s no button for this in the portal yet.</p>
 
       <nav class="pager" aria-label="Previous and next page"><a class="pager-link pager-prev" href="/docs/tracing-send/"><span class="pager-label">Previous</span><span class="pager-title">LLM tracing: send traces</span></a><a class="pager-link pager-next" href="/docs/tracing-coding-tools/"><span class="pager-label">Next</span><span class="pager-title">LLM tracing: Claude Code and Codex</span></a></nav>
     </article>
   </main>
   <aside class="toc" aria-label="On this page">
-    <p class="toc-heading">On this page</p><ul><li><a href="#the-list">The list</a></li><li><a href="#one-trace">One trace</a></li><li><a href="#conversations">Conversations</a></li><li><a href="#removing-traces">Removing traces</a></li></ul>
+    <p class="toc-heading">On this page</p><ul><li><a href="#the-list">The list</a></li><li><a href="#one-trace">One trace</a></li><li><a href="#conversations">Conversations</a></li><li><a href="#how-long-traces-are-kept">How long traces are kept</a></li><li><a href="#save-a-copy-on-your-computer">Save a copy on your computer</a></li><li><a href="#removing-traces-sooner">Removing traces sooner</a></li></ul>
   </aside>
 </div>
 <footer class="footer"><p>GEO Observability by Organized AI</p></footer>

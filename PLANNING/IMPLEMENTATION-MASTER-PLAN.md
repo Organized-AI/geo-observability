@@ -78,7 +78,7 @@ Decisions:
 | Datasets and experiments | Examples from spans, versions, compare view |
 | Prompts | Versions, labels, playground |
 | Monitors and dashboards | Thresholds, alerts, widgets |
-| Retention and quotas | Per-plan span limits, pruning, metering |
+| Quotas | Per-plan span limits and metering. (Retention is built: 92 days, with export.) |
 
 ## Running a phase
 

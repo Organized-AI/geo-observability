@@ -69,6 +69,8 @@ node ~/.geo-observability/geo-trace.mjs import --days 30
 node ~/.geo-observability/geo-trace.mjs import --dry-run    # count what would be sent, send nothing
 ```
 
+Traces are kept for 92 days, so importing further back than that only brings in turns that are deleted again within the hour.
+
 It uses the same content switches as the installer. Running it again is safe: a turn that was already sent isn't added twice, and a turn that was still running picks up its later steps. Turns sent live by the hooks and the same turns imported afterwards are separate copies, so import history first, or only for the time before you connected.
 
 ## Check, pause, remove

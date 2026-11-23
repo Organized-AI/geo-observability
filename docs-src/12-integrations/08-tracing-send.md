@@ -109,6 +109,8 @@ Cost is shown only when your app sends it. We don't work it out from token count
 
 Sending the same span twice is safe: the second copy is ignored.
 
+Traces are kept for 92 days, then deleted. Export them from the Traces page to keep a copy.
+
 ## What you're storing
 
 Traces usually contain what your users typed and what your app answered. Send only what you're allowed to keep. OpenInference instrumentors can hide inputs and outputs with settings such as `OPENINFERENCE_HIDE_INPUTS` and `OPENINFERENCE_HIDE_OUTPUTS`.
