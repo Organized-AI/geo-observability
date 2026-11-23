@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env, RunJob } from "./env";
 import { HttpError } from "./lib/util";
 import { portalApi, sharedApi, tenantsApi } from "./routes/portal";
-import { v1 } from "./routes/v1";
+import { rateLimit, v1 } from "./routes/v1";
 import { handleMcp } from "./mcp/server";
 import { ingestConversions, ingestEdge, ingestHit, resolveKey } from "./observability/ingest";
 import { consumeRuns, scheduleDuePasses, scheduleInsights } from "./workflows/scheduler";
@@ -12,6 +12,8 @@ import { stripeProvider } from "./billing/stripe";
 import { billingApi, signupApi, stripeWebhook } from "./routes/billing";
 import { authApp } from "./routes/auth";
 import { serveWithBase } from "./lib/basepath";
+import { exportResponse, readExport } from "./tracing/otlp";
+import { ingestSpans } from "./tracing/store";
 
 export { RunPromptWorkflow, InsightsWorkflow } from "./workflows/run-prompt";
 export { RunProgress } from "./durable/progress";
@@ -83,6 +85,22 @@ app.post("/ingest/hit", async (c) => {
 app.post("/ingest/conversion", async (c) => {
   const key = await resolveKey(c.env, ingestKey(c.req.raw), ["ingest"]);
   return c.json(await ingestConversions(c.env, key, await c.req.json()));
+});
+
+// ------------------------------------------------------------------ ingest (LLM tracing)
+
+/**
+ * OTLP/HTTP trace export from a client's own LLM app. Point an OpenTelemetry exporter at `<origin>/ingest/otlp`
+ * (it appends `/v1/traces`) with an ingest key in `x-ingest-key` or `Authorization: Bearer`.
+ */
+app.post("/ingest/otlp/v1/traces", async (c) => {
+  const auth = c.req.header("authorization") ?? "";
+  const secret = c.req.header("x-ingest-key") ?? (/^Bearer\s+/i.test(auth) ? auth.replace(/^Bearer\s+/i, "").trim() : null);
+  const key = await resolveKey(c.env, secret, ["ingest"]);
+  await rateLimit(c.env, key.keyId, 600);
+  const { spans, encoding } = await readExport(c.req.raw);
+  const res = await ingestSpans(c.env, key.tenantId, spans, c.req.header("x-project-name") ?? null);
+  return exportResponse(encoding, res.rejected, res.reason);
 });
 
 app.all("/api/*", (c) => c.json({ error: "not_found", message: "No such endpoint" }, 404));
