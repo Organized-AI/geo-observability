@@ -130,13 +130,82 @@ function docsTrace(r: () => number, t0: number): DemoSpan[] {
 
 const USAGE_KINDS = new Set(["LLM", "EMBEDDING", "DECISION"]);
 
+const PEOPLE = ["ada", "grace", "linus", "margaret", "dennis", "barbara"].map((n) => `${n}@northwind-desk.example`);
+const CODING: [string, string[], string][] = [
+  ["Fix the failing date test in the billing module", ["Read", "Grep", "Edit", "Bash"], "Fixed. The test parsed dates in local time; it now uses UTC."],
+  ["Add a retry with backoff to the webhook sender", ["Read", "Edit", "Bash"], "Added three retries with a growing delay and a test for the timeout case."],
+  ["Why is the tickets list slow for large accounts?", ["Grep", "Read", "Bash"], "The list loads every ticket before paging. I added a limit to the query and an index."],
+  ["Rename customerId to accountId across the API", ["Grep", "Edit", "Edit", "Bash"], "Renamed in 14 files. Types and tests pass."],
+  ["Write a migration that adds a status column to tickets", ["Read", "Write", "Bash"], "Added the migration with a default of open, and backfilled closed tickets."],
+  ["Summarise what changed on this branch", ["Bash", "Read"], "Six commits: the retry helper, two bug fixes and their tests."],
+];
+
+/** One turn of a coding tool, in the shape the geo-trace hook script sends. */
+function codingTurn(r: () => number, t0: number, tool: "claude-code" | "codex", user: string, session: string): DemoSpan[] {
+  const [prompt, tools, answer] = CODING[Math.floor(r() * CODING.length)]!;
+  const model = tool === "codex" ? "gpt-5-codex" : r() < 0.6 ? "claude-sonnet-5-5" : "claude-opus-5-5";
+  const provider = tool === "codex" ? "openai" : "anthropic";
+  const common: Attrs = { "session.id": `${tool}:${session}`, "user.id": user, "harness.name": tool };
+  const rootId = hex(r, 16);
+  const spans: DemoSpan[] = [];
+  let at = t0;
+  const failAt = r() < 0.08 ? Math.floor(r() * tools.length) : -1;
+  tools.forEach((name, i) => {
+    const think = 900 + Math.floor(r() * 2600);
+    const cached = 8000 + Math.floor(r() * 30000);
+    const fresh = 300 + Math.floor(r() * 2500);
+    const out = 80 + Math.floor(r() * 500);
+    spans.push({ id: hex(r, 16), parent: rootId, name: tool === "codex" ? "model request" : "model response", start: at, end: at + think,
+      attrs: { "openinference.span.kind": "LLM", "llm.provider": provider, "llm.model_name": model, "llm.token_count.prompt": cached + fresh, "llm.token_count.completion": out, "llm.token_count.total": cached + fresh + out, "llm.token_count.prompt_details.cache_read": cached, "llm.output_messages.0.message.role": "assistant", "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": name, ...common } });
+    at += think + 20;
+    const run = name === "Bash" ? 400 + Math.floor(r() * 4000) : 30 + Math.floor(r() * 250);
+    spans.push({ id: hex(r, 16), parent: rootId, name, start: at, end: at + run, attrs: { "openinference.span.kind": "TOOL", "tool.name": name, ...common }, ...(i === failAt ? { error: "The tool call failed." } : {}) });
+    at += run + 20;
+  });
+  const last = 1200 + Math.floor(r() * 3000);
+  const cached = 20000 + Math.floor(r() * 30000);
+  spans.push({ id: hex(r, 16), parent: rootId, name: tool === "codex" ? "model request" : "model response", start: at, end: at + last,
+    attrs: { "openinference.span.kind": "LLM", "llm.provider": provider, "llm.model_name": model, "llm.token_count.prompt": cached + 900, "llm.token_count.completion": 240, "llm.token_count.total": cached + 1140, "llm.token_count.prompt_details.cache_read": cached, "output.value": answer, ...common } });
+  at += last + 30;
+  spans.unshift({ id: rootId, parent: null, name: "turn", start: t0, end: at,
+    attrs: { "openinference.span.kind": "AGENT", "agent.name": tool, ...common, "project.name": "desk-api", "input.value": prompt, "output.value": answer } });
+  return spans;
+}
+
 /** SQL for the demo workspace's apps, spans and trace summaries. */
 export function demoTraces(tenant: string, dayList: string[]): string[] {
   const out: string[] = [];
-  const apps = { support: "app_demo_support", docs: "app_demo_docs" };
+  const apps = { support: "app_demo_support", docs: "app_demo_docs", claude: "app_demo_claude", codex: "app_demo_codex" };
   const lastSeen = `${dayList[dayList.length - 1]}T18:00:00.000Z`;
-  out.push(`INSERT INTO trace_apps (id, tenant_id, name, last_seen_at) VALUES ('${apps.support}', '${tenant}', 'support-assistant', '${lastSeen}');`);
-  out.push(`INSERT INTO trace_apps (id, tenant_id, name, last_seen_at) VALUES ('${apps.docs}', '${tenant}', 'docs-search', '${lastSeen}');`);
+  for (const [id, name] of [[apps.support, "support-assistant"], [apps.docs, "docs-search"], [apps.claude, "claude-code"], [apps.codex, "codex"]]) {
+    out.push(`INSERT INTO trace_apps (id, tenant_id, name, last_seen_at) VALUES ('${id}', '${tenant}', '${name}', '${lastSeen}');`);
+  }
+
+  const emit = (appId: string, traceId: string, spans: DemoSpan[]) => {
+    let prompt = 0, completion = 0, total = 0, cost = 0, errors = 0, llms = 0;
+    let model: string | null = null;
+    for (const s of spans) {
+      const f = spanFacts(s.attrs);
+      if (s.error) errors++;
+      if (f.kind === "LLM") llms++;
+      if (USAGE_KINDS.has(f.kind)) {
+        prompt += f.promptTokens ?? 0;
+        completion += f.completionTokens ?? 0;
+        total += f.totalTokens ?? 0;
+        cost += f.costMicros ?? 0;
+      }
+      model = model ?? f.model;
+      out.push(
+        `INSERT INTO llm_spans (tenant_id, app_id, trace_id, span_id, parent_span_id, name, kind, status_code, status_message, start_ms, end_ms, model, provider, prompt_tokens, completion_tokens, total_tokens, cost_micros, session_id, user_id, input_text, output_text, attributes, events) VALUES ('${tenant}', '${appId}', '${traceId}', '${s.id}', ${q(s.parent)}, ${q(s.name)}, '${f.kind}', '${s.error ? "ERROR" : "OK"}', ${q(s.error ?? null)}, ${s.start}, ${s.end}, ${q(f.model)}, ${q(f.provider)}, ${q(f.promptTokens)}, ${q(f.completionTokens)}, ${q(f.totalTokens)}, ${q(f.costMicros)}, ${q(f.sessionId)}, ${q(f.userId)}, ${q(f.input)}, ${q(f.output)}, ${q(JSON.stringify(s.attrs))}, ${q(JSON.stringify(s.events ?? []))});`,
+      );
+    }
+    const root = spans[0]!;
+    const rf = spanFacts(root.attrs);
+    const lastOutput = [...spans].reverse().map((s) => spanFacts(s.attrs).output).find(Boolean) ?? null;
+    out.push(
+      `INSERT INTO llm_traces (tenant_id, app_id, trace_id, session_id, user_id, root_span_id, name, kind, status, start_ms, end_ms, span_count, error_count, llm_count, prompt_tokens, completion_tokens, total_tokens, cost_micros, model, input_preview, output_preview) VALUES ('${tenant}', '${appId}', '${traceId}', ${q(rf.sessionId)}, ${q(rf.userId)}, '${root.id}', ${q(root.name)}, '${rf.kind}', '${errors ? "ERROR" : "OK"}', ${root.start}, ${Math.max(...spans.map((s) => s.end))}, ${spans.length}, ${errors}, ${llms}, ${prompt}, ${completion}, ${total}, ${cost}, ${q(model)}, ${q(rf.input?.slice(0, 400))}, ${q((rf.output ?? lastOutput)?.slice(0, 400))});`,
+    );
+  };
 
   dayList.slice(-10).forEach((day, di) => {
     const r = rng(`traces-${di}`);
@@ -147,32 +216,26 @@ export function demoTraces(tenant: string, dayList: string[]): string[] {
       const isDocs = r() < 0.35;
       const session = !isDocs && r() < 0.6 ? `sess-${day.slice(5)}-${String(Math.floor(r() * 3)).padStart(2, "0")}` : null;
       const spans = isDocs ? docsTrace(r, t0) : supportTrace(r, t0, session, r() < 0.14);
-      const traceId = hex(r, 32);
-      const appId = isDocs ? apps.docs : apps.support;
-      let prompt = 0, completion = 0, total = 0, cost = 0, errors = 0, llms = 0;
-      let model: string | null = null;
-      for (const s of spans) {
-        const f = spanFacts(s.attrs);
-        if (s.error) errors++;
-        if (f.kind === "LLM") llms++;
-        if (USAGE_KINDS.has(f.kind)) {
-          prompt += f.promptTokens ?? 0;
-          completion += f.completionTokens ?? 0;
-          total += f.totalTokens ?? 0;
-          cost += f.costMicros ?? 0;
-        }
-        model = model ?? f.model;
-        out.push(
-          `INSERT INTO llm_spans (tenant_id, app_id, trace_id, span_id, parent_span_id, name, kind, status_code, status_message, start_ms, end_ms, model, provider, prompt_tokens, completion_tokens, total_tokens, cost_micros, session_id, user_id, input_text, output_text, attributes, events) VALUES ('${tenant}', '${appId}', '${traceId}', '${s.id}', ${q(s.parent)}, ${q(s.name)}, '${f.kind}', '${s.error ? "ERROR" : "OK"}', ${q(s.error ?? null)}, ${s.start}, ${s.end}, ${q(f.model)}, ${q(f.provider)}, ${q(f.promptTokens)}, ${q(f.completionTokens)}, ${q(f.totalTokens)}, ${q(f.costMicros)}, ${q(f.sessionId)}, ${q(f.userId)}, ${q(f.input)}, ${q(f.output)}, ${q(JSON.stringify(s.attrs))}, ${q(JSON.stringify(s.events ?? []))});`,
-        );
-      }
-      const root = spans[0]!;
-      const rf = spanFacts(root.attrs);
-      const lastOutput = [...spans].reverse().map((s) => spanFacts(s.attrs).output).find(Boolean) ?? null;
-      out.push(
-        `INSERT INTO llm_traces (tenant_id, app_id, trace_id, session_id, user_id, root_span_id, name, kind, status, start_ms, end_ms, span_count, error_count, llm_count, prompt_tokens, completion_tokens, total_tokens, cost_micros, model, input_preview, output_preview) VALUES ('${tenant}', '${appId}', '${traceId}', ${q(rf.sessionId)}, ${q(rf.userId)}, '${root.id}', ${q(root.name)}, '${rf.kind}', '${errors ? "ERROR" : "OK"}', ${root.start}, ${Math.max(...spans.map((s) => s.end))}, ${spans.length}, ${errors}, ${llms}, ${prompt}, ${completion}, ${total}, ${cost}, ${q(model)}, ${q(rf.input?.slice(0, 400))}, ${q((rf.output ?? lastOutput)?.slice(0, 400))});`,
-      );
+      emit(isDocs ? apps.docs : apps.support, hex(r, 32), spans);
     }
+    // Coding tools: each person works in one or two sessions on the days they are active.
+    const weekday = new Date(dayStart).getUTCDay();
+    PEOPLE.forEach((user, pi) => {
+      const cr = rng(`coding-${di}-${pi}`);
+      if (weekday === 0 || weekday === 6 ? cr() < 0.85 : cr() < 0.2 + pi * 0.08) return;
+      const sessions = 1 + Math.floor(cr() * 2);
+      for (let si = 0; si < sessions; si++) {
+        const tool = pi % 3 === 2 || (pi % 3 === 1 && cr() < 0.5) ? "codex" : "claude-code";
+        const session = hex(cr, 12);
+        let at = dayStart + Math.floor((9 + cr() * 7) * 3_600_000);
+        const turns = 1 + Math.floor(cr() * (pi < 2 ? 6 : 3));
+        for (let ti = 0; ti < turns; ti++) {
+          const spans = codingTurn(cr, at, tool, user, session);
+          emit(tool === "codex" ? apps.codex : apps.claude, hex(cr, 32), spans);
+          at = spans[0]!.end + 20_000 + Math.floor(cr() * 240_000);
+        }
+      }
+    });
   });
   return out;
 }

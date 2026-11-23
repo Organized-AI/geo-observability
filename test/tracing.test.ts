@@ -288,6 +288,26 @@ describe("tracing API", () => {
     expect(s.json[1]).toMatchObject({ first_input: "question 0 about 50%_off", last_output: "answer 3", user_id: "u1" });
   });
 
+  it("totals usage by person and filters traces to one person", async () => {
+    const people = await get("/people");
+    expect(people.status).toBe(200);
+    expect(people.json.map((p: any) => [p.user_id, p.traces, p.sessions, p.total_tokens, p.errors, p.active_days, p.apps])).toEqual([
+      ["user-7", 1, 1, 908, 1, 1, ["support-bot-prod"]],
+      ["u1", 6, 2, 60, 1, 1, ["paging-app"]],
+    ]);
+    expect(people.json[1].last_active_ms).toBe(BASE + 10_000 + 5 * 1000 + 300);
+    const app = (await get("/apps")).json.find((x: any) => x.name === "paging-app").id;
+    expect((await get(`/people?app=${app}`)).json.map((p: any) => p.user_id)).toEqual(["u1"]);
+    expect((await get("/people?from=2026-11-21")).json).toEqual([]);
+    const mine = await get("/traces?user=u1&limit=200");
+    expect(mine.json.items).toHaveLength(6);
+    expect(mine.json.totals).toMatchObject({ traces: 6, total_tokens: 60 });
+    expect((await get("/traces?user=nobody")).json.items).toEqual([]);
+    // Another workspace sees only its own people.
+    expect((await get("/people", "trace-b")).json.map((p: any) => p.user_id)).toEqual(["user-7"]);
+    expect((await get("/traces?user=u1", "trace-b")).json.items).toEqual([]);
+  });
+
   it("never returns another workspace's traces or spans", async () => {
     // Workspace B holds only the fixture trace; A's other traces are invisible to it by id and by listing.
     expect((await get("/traces?limit=200", "trace-b")).json.items.map((t: any) => t.trace_id)).toEqual([TRACE]);

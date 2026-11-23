@@ -12,6 +12,7 @@ export interface TraceFilters {
   status?: "error" | "ok";
   q?: string;
   sessionId?: string;
+  userId?: string;
   model?: string;
   minMs?: number;
   limit: number;
@@ -38,6 +39,7 @@ function whereFor(f: TraceFilters, b: Binds): string[] {
   if (f.status === "error") where.push("t.status = 'ERROR'");
   if (f.status === "ok") where.push("t.status <> 'ERROR'");
   if (f.sessionId) where.push(`t.session_id = ${b.add(f.sessionId)}`);
+  if (f.userId) where.push(`t.user_id = ${b.add(f.userId)}`);
   if (f.model) where.push(`t.model = ${b.add(f.model)}`);
   if (f.minMs !== undefined) where.push(`(t.end_ms - t.start_ms) >= ${b.add(f.minMs)}`);
   if (f.q) {
@@ -141,6 +143,26 @@ export function listSessions(tdb: TenantDB, f: Pick<TraceFilters, "appId" | "fro
             (SELECT l.output_preview FROM llm_traces l WHERE l.tenant_id = ?1 AND l.session_id = t.session_id ORDER BY l.start_ms DESC, l.trace_id DESC LIMIT 1) AS last_output
      FROM llm_traces t WHERE ${where.join(" AND ")}
      GROUP BY t.session_id ORDER BY MAX(t.start_ms) DESC, t.session_id LIMIT ${f.limit}`,
+    ...b.values,
+  );
+}
+
+/** Usage by person (the user.id on their traces), heaviest first. One trace is one turn for a coding tool. */
+export function listPeople(tdb: TenantDB, f: Pick<TraceFilters, "appId" | "fromMs" | "toMs" | "limit">) {
+  const b = new Binds();
+  const where = ["t.tenant_id = ?1", "t.user_id IS NOT NULL"];
+  if (f.appId) where.push(`t.app_id = ${b.add(f.appId)}`);
+  if (f.fromMs !== undefined) where.push(`t.start_ms >= ${b.add(f.fromMs)}`);
+  if (f.toMs !== undefined) where.push(`t.start_ms <= ${b.add(f.toMs)}`);
+  return tdb.all(
+    `SELECT t.user_id, COUNT(*) AS traces, COUNT(DISTINCT t.session_id) AS sessions,
+            COUNT(DISTINCT strftime('%Y-%m-%d', t.start_ms / 1000, 'unixepoch')) AS active_days,
+            SUM(t.prompt_tokens) AS prompt_tokens, SUM(t.completion_tokens) AS completion_tokens, SUM(t.total_tokens) AS total_tokens,
+            SUM(t.cost_micros) AS cost_micros, SUM(t.status = 'ERROR') AS errors, MAX(t.end_ms) AS last_active_ms,
+            GROUP_CONCAT(DISTINCT a.name) AS apps
+     FROM llm_traces t JOIN trace_apps a ON a.id = t.app_id
+     WHERE ${where.join(" AND ")}
+     GROUP BY t.user_id ORDER BY SUM(t.total_tokens) DESC, COUNT(*) DESC, t.user_id LIMIT ${f.limit}`,
     ...b.values,
   );
 }

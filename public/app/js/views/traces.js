@@ -46,13 +46,22 @@ function openSetup() {
     try {
       const s = await api("tracing/setup");
       clear(body).append(h("div", { class: "tr-setup" },
-        h("p", null, "Traces arrive over OpenTelemetry (OTLP over HTTP). Any app that already exports OpenTelemetry traces can send them here by changing three settings."),
-        h("h3", { class: "section-label" }, "1. Make an ingest key"),
+        h("h3", { class: "section-label" }, "First, make an ingest key"),
         h("p", null, "Under ", h("a", { href: "#/usage" }, "Usage & API"), ", create a key with the ", h("strong", null, "ingest"), " scope. It is shown once."),
-        h("h3", { class: "section-label" }, "2. Point your exporter here"),
+        h("h2", { class: "tr-setup-title" }, "Claude Code and Codex"),
+        h("p", null, "Each person runs this once on their machine. It adds a small script to Claude Code and Codex that sends every turn here: the prompt, the model calls with their token counts, and the tools used. It works with a subscription login as well as an API key."),
+        codeBlock("Terminal", `curl -fsSL ${s.installer_url} -o geo-trace.mjs\nnode geo-trace.mjs install \\\n  --endpoint ${s.endpoint} \\\n  --key YOUR_INGEST_KEY \\\n  --user you@company.com`),
+        h("ul", { class: "plain-list" },
+          h("li", null, "Prompts and answers are sent. Add ", h("code", null, "--no-content"), " to send only timings, tools and token counts."),
+          h("li", null, "Tool inputs and outputs (file contents, command output) are not sent unless you add ", h("code", null, "--tool-content"), "."),
+          h("li", null, "Codex asks each person to approve the new hooks: run ", h("code", null, "/hooks"), " in Codex once."),
+          h("li", null, h("code", null, "node ~/.geo-observability/geo-trace.mjs status"), " shows what is connected; ", h("code", null, "uninstall"), " removes it.")),
+        h("h2", { class: "tr-setup-title" }, "Your own LLM app"),
+        h("p", null, "Traces arrive over OpenTelemetry (OTLP over HTTP). Any app that already exports OpenTelemetry traces can send them here by changing three settings."),
+        h("h3", { class: "section-label" }, "Point your exporter here"),
         codeBlock("Environment", `OTEL_EXPORTER_OTLP_ENDPOINT=${s.endpoint}\nOTEL_EXPORTER_OTLP_HEADERS=${s.key_header}=YOUR_INGEST_KEY\nOTEL_SERVICE_NAME=my-app`),
         h("p", { class: "small muted" }, `The service name becomes the app name in this list. Send a ${s.app_header} header to override it.`),
-        h("h3", { class: "section-label" }, "3. Describe your LLM calls"),
+        h("h3", { class: "section-label" }, "Describe your LLM calls"),
         h("p", null, "Spans that carry OpenInference attributes (or OpenTelemetry's gen_ai attributes) show their model, messages, tool calls, tokens and cost. In Python:"),
         codeBlock("Python", `from opentelemetry import trace\nfrom opentelemetry.sdk.trace import TracerProvider\nfrom opentelemetry.sdk.trace.export import BatchSpanProcessor\nfrom opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter\nfrom openinference.instrumentation.openai import OpenAIInstrumentor\n\nprovider = TracerProvider()\nprovider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(\n    endpoint="${s.traces_url}",\n    headers={"${s.key_header}": "YOUR_INGEST_KEY"},\n)))\ntrace.set_tracer_provider(provider)\nOpenAIInstrumentor().instrument()`),
         h("h3", { class: "section-label" }, "Check it with one request"),
@@ -78,13 +87,14 @@ function statTiles(t) {
 }
 
 async function traceList(ctx) {
-  const tab = ctx.q.get("tab") === "sessions" ? "sessions" : "traces";
+  const tab = ["sessions", "people"].includes(ctx.q.get("tab")) ? ctx.q.get("tab") : "traces";
   const app = ctx.q.get("app") || "";
   const st = ctx.q.get("st") === "error" ? "error" : "";
   const search = ctx.q.get("q") || "";
   const session = ctx.q.get("session") || "";
+  const person = ctx.q.get("user") || "";
   const sendBtn = h("button", { type: "button", class: "btn", onclick: openSetup }, icon("plus"), "Send traces");
-  ctx.el.append(pageHead("Traces", "Every run of your LLM apps: the model calls, tools and retrievals behind each answer.", sendBtn));
+  ctx.el.append(pageHead("Traces", "Every run of your LLM apps and coding tools: the model calls, tools and retrievals behind each answer.", sendBtn));
 
   const box = h("div", null, skeleton(6));
   ctx.el.append(box);
@@ -93,7 +103,7 @@ async function traceList(ctx) {
   catch (err) { clear(box).append(errorBox(err, () => ctx.setQuery({}))); return; }
   if (!ctx.alive()) return;
   if (!apps.length) {
-    clear(box).append(empty("No traces yet", "Point an OpenTelemetry exporter at this workspace and your app's runs appear here within seconds.",
+    clear(box).append(empty("No traces yet", "Connect Claude Code or Codex with one command, or point an OpenTelemetry exporter at this workspace. Runs appear here within seconds.",
       h("button", { type: "button", class: "btn btn-primary", onclick: openSetup }, "See how to send traces")));
     return;
   }
@@ -106,14 +116,19 @@ async function traceList(ctx) {
   if (tab === "traces") controls.append(segmented([["", "All"], ["error", "Errors"]], st, (id) => ctx.setQuery({ st: id || null }), "Status"), form);
 
   clear(box).append(
-    h("div", { class: "toolbar" }, tabs([["traces", "Traces"], ["sessions", "Sessions"]], tab, (id) => ctx.setQuery({ tab: id === "sessions" ? "sessions" : null, session: null })), controls));
+    h("div", { class: "toolbar" }, tabs([["traces", "Traces"], ["sessions", "Sessions"], ["people", "People"]], tab, (id) => ctx.setQuery({ tab: id === "traces" ? null : id, session: null, user: null })), controls));
   if (session && tab === "traces") {
     box.append(h("p", { class: "notice" }, icon("info"), h("span", null, "Showing the conversation ", h("strong", { class: "mono" }, session), ", newest turn first."),
       h("button", { type: "button", class: "btn btn-sm", onclick: () => ctx.setQuery({ session: null }) }, "Show all traces")));
   }
+  if (person && tab === "traces") {
+    box.append(h("p", { class: "notice" }, icon("info"), h("span", null, "Showing traces from ", h("strong", null, person), "."),
+      h("button", { type: "button", class: "btn btn-sm", onclick: () => ctx.setQuery({ user: null }) }, "Show everyone")));
+  }
   const body = h("div", null, skeleton(8));
   box.append(body);
   if (tab === "sessions") return sessionList(ctx, body, app);
+  if (tab === "people") return peopleList(ctx, body, app);
 
   const stats = h("div");
   const card = h("section", { class: "card card-flush", "aria-label": "Traces" });
@@ -125,7 +140,7 @@ async function traceList(ctx) {
     { label: "Trace", render: (t) => h("div", { class: "tr-name" },
         h("a", { href: hashFor(ctx, ["traces", t.trace_id]), class: "tr-link" }, t.name),
         h("span", { class: "small muted show-sm" }, when(t.start_ms)),
-        h("span", { class: "tr-name-meta" }, kindBadge(t.kind), t.status === "ERROR" ? badge("Error", "neg") : null, app ? null : h("span", { class: "small muted" }, t.app))) },
+        h("span", { class: "tr-name-meta" }, kindBadge(t.kind), t.status === "ERROR" ? badge("Error", "neg") : null, app ? null : h("span", { class: "small muted" }, t.app), t.user_id && !person ? h("span", { class: "small muted" }, t.user_id) : null)) },
     { label: "Input", class: "tr-preview", render: (t) => h("span", { class: "clamp-2" }, t.input_preview || h("span", { class: "muted" }, "–")) },
     { label: "Output", class: "tr-preview hide-sm", render: (t) => h("span", { class: "clamp-2" }, t.output_preview || h("span", { class: "muted" }, "–")) },
     { label: "Latency", num: true, render: (t) => dur(t.latency_ms) },
@@ -138,7 +153,7 @@ async function traceList(ctx) {
   };
   const page = async (first) => {
     try {
-      const r = await api("tracing/traces", { query: { from: ctx.f.from, to: ctx.f.to, app, status: st, q: search, session, limit: 50, cursor: cursor || "" } });
+      const r = await api("tracing/traces", { query: { from: ctx.f.from, to: ctx.f.to, app, status: st, q: search, session, user: person, limit: 50, cursor: cursor || "" } });
       if (!ctx.alive()) return;
       if (first) {
         clear(body);
@@ -185,6 +200,41 @@ async function sessionList(ctx, body, app) {
     ], list, { label: "Sessions" })));
   } catch (err) {
     clear(body).append(errorBox(err, () => { clear(body).append(skeleton(8)); sessionList(ctx, body, app); }));
+  }
+}
+
+async function peopleList(ctx, body, app) {
+  try {
+    const list = await api("tracing/people", { query: { from: ctx.f.from, to: ctx.f.to, app, limit: 200 } });
+    if (!ctx.alive()) return;
+    clear(body);
+    if (!list.length) {
+      body.append(empty("No people in this range", "People appear when traces carry a user.id. The geo-trace installer for Claude Code and Codex sets it for each person.",
+        h("button", { type: "button", class: "btn btn-primary", onclick: openSetup }, "Connect Claude Code or Codex")));
+      return;
+    }
+    const top = Math.max(1, ...list.map((p) => p.total_tokens || 0));
+    const sum = (k) => list.reduce((n, p) => n + (p[k] || 0), 0);
+    body.append(
+      h("div", { class: "kpis kpis-compact tr-kpis tr-kpis-4" },
+        [["People", fmt.int(list.length)], ["Sessions", fmt.int(sum("sessions"))], ["Turns", fmt.int(sum("traces"))], ["Tokens", tokens(sum("total_tokens"))]]
+          .map(([k, v]) => h("div", { class: "kpi" }, h("span", { class: "kpi-label" }, k), h("span", { class: "kpi-value num" }, v)))),
+      h("section", { class: "card card-flush", "aria-label": "People" }, table([
+        { label: "Person", render: (p) => h("div", { class: "tr-name" },
+            h("a", { href: hashFor(ctx, ["traces"], { tab: null, user: p.user_id }), class: "tr-link" }, p.user_id),
+            h("span", { class: "tr-name-meta" }, (p.apps || []).map((a) => h("span", { class: "badge" }, a)), p.errors ? badge(plural(p.errors, "error"), "neg") : null),
+            h("span", { class: "small muted show-sm" }, `Last active ${when(p.last_active_ms)}`)) },
+        { label: "Tokens", class: "tr-usage", render: (p) => h("div", { class: "tr-usage-cell" },
+            h("span", { class: "num" }, tokens(p.total_tokens)),
+            h("span", { class: "tr-track", "aria-hidden": "true" }, h("span", { class: "tr-bar", style: { left: "0", width: `${Math.max(1, ((p.total_tokens || 0) / top) * 100)}%` } }))) },
+        { label: "Sessions", num: true, render: (p) => fmt.int(p.sessions) },
+        { label: "Turns", num: true, class: "hide-sm", render: (p) => fmt.int(p.traces) },
+        { label: "Active days", num: true, class: "hide-sm", render: (p) => fmt.int(p.active_days) },
+        { label: "Last active", class: "hide-sm", render: (p) => h("span", { class: "nowrap" }, when(p.last_active_ms)) },
+      ], list, { label: "People" })),
+      h("p", { class: "small muted tr-foot" }, "Tokens include cached input, which is most of a coding session. A person is whoever the sending tool says they are."));
+  } catch (err) {
+    clear(body).append(errorBox(err, () => { clear(body).append(skeleton(8)); peopleList(ctx, body, app); }));
   }
 }
 

@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { requireOwner, requireWrite } from "../lib/auth";
 import { appOrigin } from "../billing/config";
 import { clamp, HttpError, isDay, newId } from "../lib/util";
-import { deleteApp, getSpan, getTrace, listApps, listSessions, listTraces, traceTotals, type TraceFilters } from "../tracing/query";
+import { deleteApp, getSpan, getTrace, listApps, listPeople, listSessions, listTraces, traceTotals, type TraceFilters } from "../tracing/query";
 import { LIMITS } from "../tracing/store";
 import { MAX_BODY_BYTES } from "../tracing/otlp";
 import type { AppEnv } from "./portal";
@@ -33,6 +33,7 @@ function filtersFrom(q: URLSearchParams): TraceFilters {
   f.appId = text("app", 40);
   f.q = text("q", 200);
   f.sessionId = text("session", 200);
+  f.userId = text("user", 200);
   f.model = text("model", 200);
   f.cursor = text("cursor", 60);
   const min = q.get("min_ms");
@@ -71,6 +72,12 @@ tracingApi.get("/sessions", async (c) => {
   return c.json(await listSessions(c.get("session").tdb, { appId: f.appId, fromMs: f.fromMs, toMs: f.toMs, limit: Math.min(f.limit, 100) }));
 });
 
+tracingApi.get("/people", async (c) => {
+  const f = filtersFrom(new URL(c.req.url).searchParams);
+  const rows = await listPeople(c.get("session").tdb, { appId: f.appId, fromMs: f.fromMs, toMs: f.toMs, limit: f.limit });
+  return c.json(rows.map((r) => ({ ...r, apps: String(r.apps ?? "").split(",").filter(Boolean).sort() })));
+});
+
 /** Where to send traces and what the limits are. Keys are made under Usage & API; none is returned here. */
 tracingApi.get("/setup", (c) => {
   const origin = appOrigin(c.env, c.req.raw);
@@ -79,6 +86,7 @@ tracingApi.get("/setup", (c) => {
     traces_url: `${origin}/ingest/otlp/v1/traces`,
     key_header: "x-ingest-key",
     app_header: "x-project-name",
+    installer_url: `${origin}/trace/geo-trace.mjs`,
     limits: { body_mb: MAX_BODY_BYTES / 1024 / 1024, spans_per_request: LIMITS.spansPerRequest, apps: LIMITS.appsPerTenant, requests_per_minute: 600 },
   });
 });
