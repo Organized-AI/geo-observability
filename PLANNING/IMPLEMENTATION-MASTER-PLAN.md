@@ -46,6 +46,27 @@ Clients send traces from their own LLM apps to their workspace and read them in 
 | Trace totals | Recomputed from stored spans after each write, so resends and out-of-order spans cannot double count. |
 | Time | Integer epoch milliseconds on spans and traces. |
 
+## Stage 2: coding tools as a trace source
+
+Goal: a company connects each employee's Claude Code and Codex, and every session shows up as traces grouped by person and tool. Both tools run lifecycle hooks with near-identical payloads, so one script serves both. It works on subscription logins because it runs on the employee's machine.
+
+| Phase | Name | Files | Depends on |
+| --- | --- | --- | --- |
+| H1 | Hook script | `public/trace/geo-trace.mjs` (capture events, build one trace per turn, send, retry), `test-scripts/geo-trace.test.mjs` | T2 |
+| H2 | Installer | same script: `install`, `uninstall`, `status`, `test`, `print-managed`; merges into `~/.claude/settings.json` and `~/.codex/hooks.json` without touching other entries | H1 |
+| H3 | People | `migrations/0007`, `src/tracing/query.ts`, `src/routes/tracing.ts`, `public/app/js/views/traces.js`, demo data: usage by person and tool, filter traces by person, connect instructions | H1 |
+| H4 | Docs and check | user guide page, changelog, replay of real-shaped hook payloads against a running server | H2, H3 |
+
+Decisions:
+
+| Question | Decision |
+| --- | --- |
+| Hooks or transcript files? | Hooks for structure (turn, prompt, tools, final answer). Claude Code's transcript is read only for model and token counts, because no hook carries them, and its format is documented as unstable: if it cannot be read, the trace is still sent without tokens. Codex gives token counts in its `PostModelRequest` hook. |
+| Can it slow or break a session? | No. Hooks are registered as async, the script prints nothing, always exits 0, and has a short send timeout. Unsent turns wait in a small outbox. |
+| Content | Prompts and answers are captured by default; tool inputs and outputs are off by default because they hold file contents and command output. Both are install-time switches, and content that is switched off is never written to disk. |
+| Identity | `user.id` is the email given at install (or the git email, or the login name). It is self-declared; per-person keys are a later step. |
+| Cost | Not computed. Subscription seats have no per-request price; tokens are the measure for now. |
+
 ## Later stages (not in this plan yet)
 
 | Stage | Scope |
