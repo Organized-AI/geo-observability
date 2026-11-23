@@ -53,6 +53,17 @@
    Pages table: citations . citation rate . bot hits . retrievals . sessions . conversions . revenue
                . the prompts whose answers cited each page   -> insights (crawl drop, referral/conversion moves)
  =========================================================================================
+ ======================== LLM TRACING ====================================================
+   A client's own LLM app (OpenTelemetry exporter, OpenInference or gen_ai attributes)
+        |  POST /ingest/otlp/v1/traces   (ingest key; protobuf or JSON; gzip)
+        v
+   decode -> span facts (kind, model, tokens, cost, session, input, output)
+        -> llm_spans (insert once)  ->  llm_traces (summary recomputed from stored spans)
+        -> trace_apps (named by header, project name or service name)
+        |
+        v   /api/tracing: apps . traces (filters, keyset paging) . trace + spans . sessions
+   Portal "Traces": list . sessions . span tree with timeline . messages, tools, documents
+ =========================================================================================
    BILLING (hooks only): usage_events -> usage_pushes (identifier tenant:meter:hour) . billing_accounts.status gates runs
 ```
 

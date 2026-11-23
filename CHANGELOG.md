@@ -4,6 +4,14 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-23
+
+### Added
+- LLM tracing: send traces from your own LLM apps over OpenTelemetry (OTLP over HTTP, protobuf or JSON) to `/ingest/otlp/v1/traces` with an ingest key. Spans carrying OpenInference or OpenTelemetry `gen_ai` attributes show their model, messages, tool calls, retrieved documents, tokens and cost.
+- A **Traces** page in the portal: runs by app with error, search and date filters, conversations grouped by session, and a trace page with the span tree, a timeline and the detail of each step. The demo workspace has sample traces.
+- `/api/tracing` for the portal (apps, traces, spans, sessions, setup) and two user guide pages under Integrations.
+- Migration `0006_llm_tracing.sql` (`trace_apps`, `llm_spans`, `llm_traces`). Apply it before deploying.
+
 ## [1.4.1] - 2026-11-14
 
 ### Changed
