@@ -130,7 +130,7 @@ function docsTrace(r: () => number, t0: number): DemoSpan[] {
 
 const USAGE_KINDS = new Set(["LLM", "EMBEDDING", "DECISION"]);
 
-const PEOPLE = ["ada", "grace", "linus", "margaret", "dennis", "barbara"].map((n) => `${n}@northwind-desk.example`);
+const PEOPLE = ["Ada L.", "Grace H.", "Linus T.", "Margaret H.", "Dennis R.", "Barbara L."];
 const CODING: [string, string[], string][] = [
   ["Fix the failing date test in the billing module", ["Read", "Grep", "Edit", "Bash"], "Fixed. The test parsed dates in local time; it now uses UTC."],
   ["Add a retry with backoff to the webhook sender", ["Read", "Edit", "Bash"], "Added three retries with a growing delay and a test for the timeout case."],
