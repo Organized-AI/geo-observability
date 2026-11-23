@@ -404,3 +404,92 @@ test("install, status and uninstall edit only our hooks, and the hook command wo
   });
 });
 
+
+// ------------------------------------------------------------------ import of sessions already on disk
+
+test("claudeTurns and codexTurns rebuild turns from session files, and seeded ids are repeatable", async () => {
+  const { claudeTurns, codexTurns } = await import("../public/trace/geo-trace.mjs");
+  const u = (o) => line({ sessionId: "sess-9", cwd: "/work/shop", ...o });
+  const claudeFile = [
+    u({ type: "user", promptId: "p1", timestamp: "2026-11-20T10:00:00.000Z", message: { role: "user", content: "Fix the bug" } }),
+    u({ type: "assistant", timestamp: "2026-11-20T10:00:02.000Z", message: { id: "m1", model: "claude-opus-5-5", usage: { input_tokens: 10, cache_read_input_tokens: 500, output_tokens: 20 }, content: [{ type: "tool_use", id: "tu1", name: "Read", input: { file_path: "/secret.txt" } }] } }),
+    u({ type: "user", promptId: "p1", timestamp: "2026-11-20T10:00:03.000Z", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "tu1", content: "file body" }] } }),
+    u({ type: "user", promptId: "p1", timestamp: "2026-11-20T10:00:03.100Z", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "tu1", content: "file body" }] } }),
+    u({ type: "assistant", isSidechain: true, timestamp: "2026-11-20T10:00:04.000Z", message: { id: "side", model: "x", usage: { input_tokens: 9999, output_tokens: 9999 }, content: [] } }),
+    u({ type: "assistant", timestamp: "2026-11-20T10:00:05.000Z", message: { id: "m2", model: "claude-opus-5-5", usage: { input_tokens: 5, output_tokens: 40 }, content: [{ type: "tool_use", id: "tu2", name: "Bash", input: { command: "npm test" } }] } }),
+    u({ type: "user", promptId: "p1", timestamp: "2026-11-20T10:00:09.000Z", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "tu2", is_error: true, content: "1 failing" }] } }),
+    u({ type: "assistant", timestamp: "2026-11-20T10:00:12.000Z", message: { id: "m3", model: "claude-opus-5-5", usage: { input_tokens: 5, output_tokens: 8 }, content: [{ type: "text", text: "Fixed it." }] } }),
+    "not json at all",
+    u({ type: "user", promptId: "p2", timestamp: "2026-11-20T11:00:00.000Z", message: { role: "user", content: [{ type: "text", text: "Thanks" }] } }),
+    u({ type: "assistant", timestamp: "2026-11-20T11:00:01.000Z", message: { id: "m4", model: "claude-haiku-5-5", usage: { input_tokens: 1, output_tokens: 2 }, content: [{ type: "text", text: "Welcome." }] } }),
+  ].join("\n");
+  const turns = claudeTurns(claudeFile, cfgDefault);
+  assert.deepEqual(turns.map((t) => [t.sid, t.key, t.events.map((e) => e.e).join(",")]), [
+    ["sess-9", "p1", "UserPromptSubmit,PreToolUse,PostToolUse,PostToolUse,PreToolUse,PostToolUseFailure,Stop"],
+    ["sess-9", "p2", "UserPromptSubmit,Stop"],
+  ]);
+  const build = (t) => toOtlp(buildTurn(t.harness, cfgDefault, t.events, { ...t.extra, seed: `${t.harness}:${t.sid}:${t.key}` }));
+  const spans = build(turns[0]).resourceSpans[0].scopeSpans[0].spans;
+  assert.deepEqual(spans.map((s) => s.name).sort(), ["Bash", "Read", "model response", "model response", "model response", "turn"], "a result logged twice is one tool call; the side thread is left out");
+  assert.equal(spans.reduce((n, s) => n + (attrs(s)["llm.token_count.total"] || 0), 0), 530 + 45 + 13);
+  const root = attrs(spans.find((s) => s.name === "turn"));
+  assert.deepEqual([root["input.value"], root["output.value"], root["session.id"], root["project.name"]], ["Fix the bug", "Fixed it.", "claude-code:sess-9", "shop"]);
+  assert.deepEqual(spans.find((s) => s.name === "Bash").status, { code: 2, message: "The tool call failed." });
+  assert.equal(JSON.stringify(spans).includes("secret.txt"), false, "tool input stays out by default");
+  assert.equal(spans.find((s) => s.name === "turn").startTimeUnixNano, `${Date.parse("2026-11-20T10:00:00.000Z")}000000`);
+  // Same file, same ids: importing twice cannot create a second copy.
+  assert.deepEqual(build(turns[0]), build(turns[0]));
+  // A turn imported while still running, then again once it has grown: the steps seen the first time keep their ids.
+  const early = claudeTurns(claudeFile.split("\n").slice(0, 3).join("\n"), cfgDefault)[0];
+  const earlyIds = Object.fromEntries(build(early).resourceSpans[0].scopeSpans[0].spans.map((s) => [`${s.name}@${s.startTimeUnixNano}`, s.spanId]));
+  const lateIds = Object.fromEntries(spans.map((s) => [`${s.name}@${s.startTimeUnixNano}`, s.spanId]));
+  assert.equal(Object.keys(earlyIds).length, 3);
+  for (const [k, v] of Object.entries(earlyIds)) assert.equal(lateIds[k], v, k);
+  assert.equal(build(early).resourceSpans[0].scopeSpans[0].spans[0].traceId, spans[0].traceId);
+  assert.notEqual(build(turns[0]).resourceSpans[0].scopeSpans[0].spans[0].traceId, build(turns[1]).resourceSpans[0].scopeSpans[0].spans[0].traceId);
+  assert.equal(JSON.stringify(build(claudeTurns(claudeFile, cfgNone)[0])).includes("Fix the bug"), false);
+
+  const c = (type, payload, ts) => line({ timestamp: ts, type, payload });
+  const usage = (total, last) => ({ type: "token_count", info: { total_token_usage: { total_tokens: total }, last_token_usage: last } });
+  const codexFile = [
+    c("session_meta", { id: "thread-1", cwd: "/srv/api" }, "2026-11-21T09:00:00.000Z"),
+    c("event_msg", { type: "task_started", turn_id: "t1" }, "2026-11-21T09:00:01.000Z"),
+    c("turn_context", { turn_id: "t1", cwd: "/srv/api", model: "gpt-5-codex" }, "2026-11-21T09:00:01.100Z"),
+    c("response_item", { type: "message", role: "user", content: [{ type: "input_text", text: "Add a retry" }] }, "2026-11-21T09:00:01.200Z"),
+    c("event_msg", usage(1000, { input_tokens: 900, cached_input_tokens: 700, output_tokens: 100, reasoning_output_tokens: 60, total_tokens: 1000 }), "2026-11-21T09:00:04.000Z"),
+    c("response_item", { type: "function_call", name: "shell", arguments: "{\"command\":\"ls\"}", call_id: "c1" }, "2026-11-21T09:00:04.100Z"),
+    c("response_item", { type: "function_call_output", call_id: "c1", output: "a.ts" }, "2026-11-21T09:00:04.900Z"),
+    c("event_msg", usage(1000, { input_tokens: 900, cached_input_tokens: 700, output_tokens: 100, total_tokens: 1000 }), "2026-11-21T09:00:05.000Z"),
+    c("response_item", { type: "custom_tool_call", name: "apply_patch", input: "*** patch", call_id: "c2" }, "2026-11-21T09:00:06.000Z"),
+    c("response_item", { type: "custom_tool_call_output", call_id: "c2", output: "ok" }, "2026-11-21T09:00:06.500Z"),
+    c("event_msg", usage(1600, { input_tokens: 500, cached_input_tokens: 400, output_tokens: 100, total_tokens: 600 }), "2026-11-21T09:00:08.000Z"),
+    c("event_msg", { type: "task_complete", turn_id: "t1", last_agent_message: "Added." }, "2026-11-21T09:00:08.500Z"),
+    "{ broken line",
+    c("event_msg", { type: "task_started", turn_id: "t2" }, "2026-11-21T09:10:00.000Z"),
+    c("event_msg", { type: "user_message", message: "and tests?" }, "2026-11-21T09:10:00.100Z"),
+  ].join("\n");
+  const ct = codexTurns(codexFile, cfgDefault);
+  assert.deepEqual(ct.map((t) => [t.sid, t.key]), [["thread-1", "t1"], ["thread-1", "t2"]]);
+  const cs = toOtlp(buildTurn("codex", cfgDefault, ct[0].events, { seed: "x" })).resourceSpans[0].scopeSpans[0].spans;
+  assert.deepEqual(cs.map((s) => s.name).sort(), ["apply_patch", "model request", "model request", "shell", "turn"], "a repeated token report is not a second model request");
+  assert.equal(cs.reduce((n, s) => n + (attrs(s)["llm.token_count.total"] || 0), 0), 1600);
+  const cr = attrs(cs.find((s) => s.name === "turn"));
+  assert.deepEqual([cr["input.value"], cr["output.value"], cr["session.id"], cr["harness.model"], cr["project.name"]], ["Add a retry", "Added.", "codex:thread-1", "gpt-5-codex", "api"]);
+  assert.equal(attrs(cs.find((s) => s.name === "model request"))["llm.model_name"], "gpt-5-codex");
+  const second = attrs(toOtlp(buildTurn("codex", cfgDefault, ct[1].events, { seed: "y" })).resourceSpans[0].scopeSpans[0].spans[0]);
+  assert.deepEqual([second["input.value"], second["turn.incomplete"]], ["and tests?", true]);
+  // A subagent's file: its own identity first, then a copy of the parent's and a replay of the parent's turn.
+  const childFile = [
+    c("session_meta", { id: "thread-2", session_id: "thread-1", parent_thread_id: "thread-1", cwd: "/srv/api" }, "2026-11-21T09:00:03.000Z"),
+    c("session_meta", { id: "thread-1", session_id: "thread-1", cwd: "/srv/api" }, "2026-11-21T09:00:03.001Z"),
+    c("event_msg", { type: "task_started", turn_id: "t1" }, "2026-11-21T09:00:03.002Z"),
+    c("response_item", { type: "function_call", name: "shell", arguments: "{}", call_id: "c1" }, "2026-11-21T09:00:03.003Z"),
+    c("event_msg", { type: "task_complete", turn_id: "t1", last_agent_message: "Added." }, "2026-11-21T09:00:03.004Z"),
+    c("event_msg", { type: "task_started", turn_id: "sub-1" }, "2026-11-21T09:00:03.100Z"),
+    c("event_msg", usage(50, { input_tokens: 40, output_tokens: 10, total_tokens: 50 }), "2026-11-21T09:00:04.000Z"),
+    c("event_msg", { type: "task_complete", turn_id: "sub-1", last_agent_message: "Looked." }, "2026-11-21T09:00:04.100Z"),
+  ].join("\n");
+  assert.deepEqual(codexTurns(childFile, cfgDefault).map((t) => [t.sid, t.key]), [["thread-1", "thread-2:sub-1"]], "the parent's replayed turn is left to the parent's own file");
+  assert.deepEqual(claudeTurns("", cfgDefault), []);
+  assert.deepEqual(codexTurns("garbage\n[]\nnull\n{}", cfgDefault), []);
+});

@@ -60,6 +60,17 @@ Content that is switched off is never written to disk on the person's machine, a
 
 Tell people what you collect before you roll this out. Prompts can contain anything a person types, including secrets pasted by mistake.
 
+## Bring in sessions from before you connected
+
+Both tools keep past sessions on the machine. After installing, this sends the last 30 days of them:
+
+```bash
+node ~/.geo-observability/geo-trace.mjs import --days 30
+node ~/.geo-observability/geo-trace.mjs import --dry-run    # count what would be sent, send nothing
+```
+
+It uses the same content switches as the installer. Running it again is safe: a turn that was already sent isn't added twice, and a turn that was still running picks up its later steps. Turns sent live by the hooks and the same turns imported afterwards are separate copies, so import history first, or only for the time before you connected.
+
 ## Check, pause, remove
 
 ```bash
@@ -96,4 +107,6 @@ Tokens include cached input, which is most of a coding session, so the numbers a
 - Model calls and tokens for Claude Code are read from its session file, because Claude Code doesn't hand them to hooks. That file's format belongs to Claude Code and can change. If it does, turns still arrive, without model calls and tokens, until the script is updated.
 - A person is whoever the installer was told they are. With one shared key, the workspace can't prove who sent a trace.
 - The chat apps (Claude and ChatGPT in the browser or desktop app) have no hooks and aren't covered.
+- Import reads each tool's own session files. Their formats belong to the tools and can change.
+- Import leaves out Claude Code subagent threads. Codex subagent threads are included, in the same conversation as their parent.
 - Windows hasn't been tested.

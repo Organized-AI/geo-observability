@@ -129,6 +129,12 @@ node geo-trace.mjs install \
 </div>
 <p>Content that is switched off is never written to disk on the person&#39;s machine, and never sent. Long values are cut.</p>
 <p>Tell people what you collect before you roll this out. Prompts can contain anything a person types, including secrets pasted by mistake.</p>
+<h2 id="bring-in-sessions-from-before-you-connected"><a class="anchor" href="#bring-in-sessions-from-before-you-connected" aria-hidden="true" tabindex="-1">#</a>Bring in sessions from before you connected</h2>
+<p>Both tools keep past sessions on the machine. After installing, this sends the last 30 days of them:</p>
+<pre><code class="language-bash">node ~/.geo-observability/geo-trace.mjs import --days 30
+node ~/.geo-observability/geo-trace.mjs import --dry-run    # count what would be sent, send nothing
+</code></pre>
+<p>It uses the same content switches as the installer. Running it again is safe: a turn that was already sent isn&#39;t added twice, and a turn that was still running picks up its later steps. Turns sent live by the hooks and the same turns imported afterwards are separate copies, so import history first, or only for the time before you connected.</p>
 <h2 id="check-pause-remove"><a class="anchor" href="#check-pause-remove" aria-hidden="true" tabindex="-1">#</a>Check, pause, remove</h2>
 <pre><code class="language-bash">node ~/.geo-observability/geo-trace.mjs status      # what is connected, and anything waiting to send
 node ~/.geo-observability/geo-trace.mjs test        # send a test turn
@@ -156,6 +162,8 @@ node ~/.geo-observability/geo-trace.mjs uninstall   # remove the hooks and the s
 <li>Model calls and tokens for Claude Code are read from its session file, because Claude Code doesn&#39;t hand them to hooks. That file&#39;s format belongs to Claude Code and can change. If it does, turns still arrive, without model calls and tokens, until the script is updated.</li>
 <li>A person is whoever the installer was told they are. With one shared key, the workspace can&#39;t prove who sent a trace.</li>
 <li>The chat apps (Claude and ChatGPT in the browser or desktop app) have no hooks and aren&#39;t covered.</li>
+<li>Import reads each tool&#39;s own session files. Their formats belong to the tools and can change.</li>
+<li>Import leaves out Claude Code subagent threads. Codex subagent threads are included, in the same conversation as their parent.</li>
 <li>Windows hasn&#39;t been tested.</li>
 </ul>
 
@@ -163,7 +171,7 @@ node ~/.geo-observability/geo-trace.mjs uninstall   # remove the hooks and the s
     </article>
   </main>
   <aside class="toc" aria-label="On this page">
-    <p class="toc-heading">On this page</p><ul><li><a href="#connect-a-machine">Connect a machine</a></li><li><a href="#what-is-sent">What is sent</a></li><li><a href="#check-pause-remove">Check, pause, remove</a></li><li><a href="#it-cant-slow-or-break-a-session">It can&#39;t slow or break a session</a></li><li><a href="#roll-it-out-to-everyone">Roll it out to everyone</a></li><li><a href="#reading-the-results">Reading the results</a></li><li><a href="#limits">Limits</a></li></ul>
+    <p class="toc-heading">On this page</p><ul><li><a href="#connect-a-machine">Connect a machine</a></li><li><a href="#what-is-sent">What is sent</a></li><li><a href="#bring-in-sessions-from-before-you-connected">Bring in sessions from before you connected</a></li><li><a href="#check-pause-remove">Check, pause, remove</a></li><li><a href="#it-cant-slow-or-break-a-session">It can&#39;t slow or break a session</a></li><li><a href="#roll-it-out-to-everyone">Roll it out to everyone</a></li><li><a href="#reading-the-results">Reading the results</a></li><li><a href="#limits">Limits</a></li></ul>
   </aside>
 </div>
 <footer class="footer"><p>GEO Observability by Organized AI</p></footer>

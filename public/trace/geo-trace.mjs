@@ -5,6 +5,7 @@
  *   node geo-trace.mjs install --endpoint <url> --key <ingest key> [--user you@company.com] [--tools claude,codex]
  *                              [--no-content] [--tool-content]
  *   node geo-trace.mjs status | test | uninstall | print-managed <claude|codex>
+ *   node geo-trace.mjs import [--days 30] [--tools claude,codex] [--dry-run]
  *   node geo-trace.mjs hook <claude|codex>        (run by the tools; reads one hook event on stdin)
  *
  * Both tools run "hooks" at points in a session (prompt sent, tool used, turn finished) and hand the hook a JSON
@@ -16,7 +17,7 @@ import { appendFileSync, chmodSync, copyFileSync, existsSync, mkdirSync, readFil
 import { homedir, userInfo } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 
 export const VERSION = "1";
@@ -53,7 +54,8 @@ const cut = (v, max) => {
   const s = typeof v === "string" ? v : v === undefined || v === null ? "" : JSON.stringify(v);
   return s.length > max ? `${s.slice(0, max)} …[cut]` : s;
 };
-const hex = (bytes) => randomBytes(bytes).toString("hex");
+const randomHex = (bytes) => randomBytes(bytes).toString("hex");
+const hex = randomHex;
 
 // ------------------------------------------------------------------ capture (one hook event -> one stored line)
 
@@ -115,23 +117,28 @@ export function transcriptCalls(text, { promptId, sinceMs } = {}) {
     if (!m || typeof m !== "object" || !m.id || !m.usage) continue;
     const ts = Date.parse(d.timestamp);
     if (haveIds ? !inTurn : Number.isFinite(sinceMs) && !(ts >= sinceMs - 1000)) continue;
-    const u = m.usage;
-    const n = (x) => (typeof x === "number" && x >= 0 ? x : 0);
-    const usage = { input: n(u.input_tokens), cacheRead: n(u.cache_read_input_tokens), cacheWrite: n(u.cache_creation_input_tokens), output: n(u.output_tokens) };
-    const total = usage.input + usage.cacheRead + usage.cacheWrite + usage.output;
-    const prev = calls.get(m.id);
-    const blocks = Array.isArray(m.content) ? m.content : [];
-    const texts = blocks.filter((b) => b && b.type === "text" && typeof b.text === "string").map((b) => b.text);
-    const toolNames = blocks.filter((b) => b && b.type === "tool_use" && typeof b.name === "string").map((b) => b.name);
-    if (!prev) calls.set(m.id, { id: m.id, model: typeof m.model === "string" ? m.model : null, first: ts, last: ts, usage, total, texts, toolNames });
-    else {
-      if (Number.isFinite(ts)) { prev.first = Math.min(prev.first, ts); prev.last = Math.max(prev.last, ts); }
-      if (total > prev.total) { prev.usage = usage; prev.total = total; }
-      prev.texts.push(...texts);
-      prev.toolNames.push(...toolNames);
-    }
+    foldCall(calls, d, m, ts);
   }
   return [...calls.values()].filter((c) => Number.isFinite(c.first)).sort((a, b) => a.first - b.first);
+}
+
+/** Adds one transcript line of a model response to the call it belongs to (lines share a message id). */
+function foldCall(calls, _d, m, ts) {
+  const u = m.usage;
+  const n = (x) => (typeof x === "number" && x >= 0 ? x : 0);
+  const usage = { input: n(u.input_tokens), cacheRead: n(u.cache_read_input_tokens), cacheWrite: n(u.cache_creation_input_tokens), output: n(u.output_tokens) };
+  const total = usage.input + usage.cacheRead + usage.cacheWrite + usage.output;
+  const prev = calls.get(m.id);
+  const blocks = Array.isArray(m.content) ? m.content : [];
+  const texts = blocks.filter((b) => b && b.type === "text" && typeof b.text === "string").map((b) => b.text);
+  const toolNames = blocks.filter((b) => b && b.type === "tool_use" && typeof b.name === "string").map((b) => b.name);
+  if (!prev) calls.set(m.id, { id: m.id, model: typeof m.model === "string" ? m.model : null, first: ts, last: ts, usage, total, texts, toolNames });
+  else {
+    if (Number.isFinite(ts)) { prev.first = Math.min(prev.first, ts); prev.last = Math.max(prev.last, ts); }
+    if (total > prev.total) { prev.usage = usage; prev.total = total; }
+    prev.texts.push(...texts);
+    prev.toolNames.push(...toolNames);
+  }
 }
 
 function readTranscript(path, opts) {
@@ -158,8 +165,13 @@ export function buildTurn(harness, cfg, events, extra = {}) {
   const sid = start.sid || events.find((e) => e.sid)?.sid || "unknown";
   const cwd = events.find((e) => e.cwd)?.cwd || "";
   const model = [...events].reverse().find((e) => e.model)?.model || null;
-  const traceId = hex(16);
-  const rootId = hex(8);
+  // With a seed (imports), ids are derived from it, so importing the same session twice sends the same ids.
+  // Each step's id comes from what it is (its tool call id, its message id), not from its position, so a turn that
+  // was still running when it was first imported adds its later steps without repeating the earlier ones.
+  let n = 0;
+  const id = (key) => (extra.seed ? createHash("sha256").update(`${extra.seed}|${key}`).digest("hex").slice(0, 16) : randomHex(8));
+  const traceId = extra.seed ? createHash("sha256").update(`${extra.seed}|trace`).digest("hex").slice(0, 32) : randomHex(16);
+  const rootId = id("root");
   const spans = [];
   const common = { "session.id": `${h.service}:${sid}`, "user.id": cfg.user || "unknown", "harness.name": h.service };
 
@@ -176,7 +188,7 @@ export function buildTurn(harness, cfg, events, extra = {}) {
   for (const e of events) {
     if (!e.aid) continue;
     let a = agents.get(e.aid);
-    if (!a) { a = { id: hex(8), start: e.t, end: e.t, type: e.atype || "subagent", answer: undefined, atp: null }; agents.set(e.aid, a); }
+    if (!a) { a = { id: id(`agent:${e.aid}`), start: e.t, end: e.t, type: e.atype || "subagent", answer: undefined, atp: null }; agents.set(e.aid, a); }
     a.start = Math.min(a.start, e.t);
     a.end = Math.max(a.end, e.t);
     if (e.atype) a.type = e.atype;
@@ -194,20 +206,21 @@ export function buildTurn(harness, cfg, events, extra = {}) {
   const done = new Set();
   for (const e of events) {
     if (e.e !== "PostToolUse" && e.e !== "PostToolUseFailure") continue;
+    if (e.tid && done.has(e.tid)) continue; // a result reported twice is one tool call
     const p = e.tid ? pre.get(e.tid) : null;
     if (e.tid) done.add(e.tid);
     const s = p ? p.t : typeof e.dur === "number" ? e.t - e.dur : e.t;
-    spans.push({ id: hex(8), parent: parentOf(e), name: e.tool || p?.tool || "tool", start: Math.min(s, e.t), end: e.t, error: e.e === "PostToolUseFailure" ? e.err || "The tool call failed." : null,
+    spans.push({ id: id(`tool:${e.tid || n++}`), parent: parentOf(e), name: e.tool || p?.tool || "tool", start: Math.min(s, e.t), end: e.t, error: e.e === "PostToolUseFailure" ? e.err || "The tool call failed." : null,
       attrs: { "openinference.span.kind": "TOOL", "tool.name": e.tool || p?.tool || "tool", ...common, ...(p && p.input !== undefined ? { "input.value": p.input, "input.mime_type": "application/json" } : {}), ...(e.output !== undefined ? { "output.value": e.output } : {}) } });
   }
   for (const [tid, p] of pre) {
     if (done.has(tid)) continue; // started but never reported back: interrupted or denied
-    spans.push({ id: hex(8), parent: parentOf(p), name: p.tool || "tool", start: p.t, end: p.t, error: null,
+    spans.push({ id: id(`tool:${tid}`), parent: parentOf(p), name: p.tool || "tool", start: p.t, end: p.t, error: null,
       attrs: { "openinference.span.kind": "TOOL", "tool.name": p.tool || "tool", "tool.unfinished": true, ...common, ...(p.input !== undefined ? { "input.value": p.input } : {}) } });
   }
 
   // Model calls. Codex reports each request with its token counts; for Claude Code they come from the transcript.
-  const llm = (parent, name, s, e2, mdl, usage, more = {}, error = null) => {
+  const llm = (key, parent, name, s, e2, mdl, usage, more = {}, error = null) => {
     const attrs = { "openinference.span.kind": "LLM", "llm.provider": h.provider, ...common, ...(mdl ? { "llm.model_name": mdl } : {}), ...more };
     if (usage) {
       attrs["llm.token_count.prompt"] = usage.prompt;
@@ -217,17 +230,18 @@ export function buildTurn(harness, cfg, events, extra = {}) {
       if (usage.cacheWrite) attrs["llm.token_count.prompt_details.cache_write"] = usage.cacheWrite;
       if (usage.reasoning) attrs["llm.token_count.completion_details.reasoning"] = usage.reasoning;
     }
-    spans.push({ id: hex(8), parent, name, start: Math.min(s, e2), end: e2, error, attrs });
+    spans.push({ id: id(`llm:${key}`), parent, name, start: Math.min(s, e2), end: e2, error, attrs });
   };
   const preReq = new Map();
   let prevT = start.t;
+  let reqN = 0;
   for (const e of events) {
     if (e.e === "PreModelRequest" && e.rid) preReq.set(e.rid, e.t);
     if (e.e === "PostModelRequest") {
       const u = e.usage || null;
       const n = (x) => (typeof x === "number" && x >= 0 ? x : 0);
       const usage = u ? { prompt: n(u.input_tokens), completion: n(u.output_tokens), cacheRead: n(u.cached_input_tokens), cacheWrite: n(u.cache_write_input_tokens), reasoning: n(u.reasoning_output_tokens) } : null;
-      llm(parentOf(e), "model request", (e.rid && preReq.get(e.rid)) || prevT, e.t, e.model || model, usage, {}, e.status === "failed" ? e.err || "The model request failed." : null);
+      llm(e.rid || `request:${reqN++}`, parentOf(e), "model request", (e.rid && preReq.get(e.rid)) || prevT, e.t, e.model || model, usage, {}, e.status === "failed" ? e.err || "The model request failed." : null);
     }
     prevT = e.t;
   }
@@ -242,7 +256,7 @@ export function buildTurn(harness, cfg, events, extra = {}) {
       if (cfg.capture.responses && c.texts.length) more["output.value"] = cut(c.texts.join("\n"), LIMITS.answer);
       c.toolNames.slice(0, 20).forEach((n, i) => { more[`llm.output_messages.0.message.tool_calls.${i}.tool_call.function.name`] = n; });
       if (c.toolNames.length) more["llm.output_messages.0.message.role"] = "assistant";
-      llm(parent, "model response", Math.min(prev, c.first), Math.max(c.last, prev), c.model || model, usage, more);
+      llm(c.id, parent, "model response", Math.min(prev, c.first), Math.max(c.last, prev), c.model || model, usage, more);
       prev = Math.max(c.last, prev);
     }
   };
@@ -379,6 +393,194 @@ export async function runHook(harness, raw, now = Date.now()) {
   const turn = events.slice(0, at + 1);
   if (turn.some((x) => x.e === "UserPromptSubmit")) await flush(harness, cfg, path, turn);
   await drainOutbox(cfg);
+}
+
+// ------------------------------------------------------------------ import (history already on this machine)
+
+const tsOf = (d) => { const t = Date.parse(d && d.timestamp); return Number.isFinite(t) ? t : null; };
+const textOf = (content) => (typeof content === "string" ? content : Array.isArray(content) ? content.filter((b) => b && typeof b.text === "string" && (b.type === "text" || b.type === "input_text" || b.type === "output_text")).map((b) => b.text).join("\n") : "");
+
+/** Turns in a Claude Code session file, as the events the hooks would have produced. Reads defensively. */
+export function claudeTurns(text, cfg) {
+  const cap = cfg.capture;
+  const turns = [];
+  let cur = null;
+  let sid = "";
+  let cwd = "";
+  for (const line of text.split("\n")) {
+    if (!line || !(line.includes('"user"') || line.includes('"assistant"'))) continue;
+    let d;
+    try { d = JSON.parse(line); } catch { continue; }
+    if (!d || typeof d !== "object" || d.isSidechain) continue;
+    const t = tsOf(d);
+    const m = d.message;
+    if (t === null || !m || typeof m !== "object") continue;
+    if (typeof d.sessionId === "string") sid = d.sessionId;
+    if (typeof d.cwd === "string") cwd = d.cwd;
+    if (d.type === "user") {
+      const blocks = Array.isArray(m.content) ? m.content : [];
+      const results = blocks.filter((b) => b && b.type === "tool_result");
+      if (typeof d.promptId === "string" && (!cur || cur.pid !== d.promptId) && !results.length && !d.isMeta) {
+        cur = { pid: d.promptId, sid, events: [{ t, e: "UserPromptSubmit", sid, pid: d.promptId, cwd, ...(cap.prompts ? { prompt: cut(textOf(m.content), LIMITS.prompt) } : {}) }], calls: new Map(), tools: new Map(), last: t, answer: "" };
+        turns.push(cur);
+        continue;
+      }
+      if (!cur) continue;
+      cur.last = Math.max(cur.last, t);
+      for (const r of results) {
+        const name = cur.tools.get(r.tool_use_id) || "tool";
+        cur.events.push({ t, e: r.is_error ? "PostToolUseFailure" : "PostToolUse", sid, tid: r.tool_use_id, tool: name, ...(cap.tool_io ? { output: cut(r.content, LIMITS.tool) } : {}), ...(r.is_error ? { err: cap.tool_io ? cut(r.content, 2000) : "The tool call failed." } : {}) });
+      }
+    } else if (d.type === "assistant" && cur) {
+      cur.last = Math.max(cur.last, t);
+      const blocks = Array.isArray(m.content) ? m.content : [];
+      for (const b of blocks) {
+        if (b && b.type === "tool_use" && typeof b.id === "string") {
+          cur.tools.set(b.id, b.name || "tool");
+          cur.events.push({ t, e: "PreToolUse", sid, tid: b.id, tool: b.name || "tool", ...(cap.tool_io ? { input: cut(b.input, LIMITS.tool) } : {}) });
+        } else if (b && b.type === "text" && typeof b.text === "string" && b.text.trim()) cur.answer = b.text;
+      }
+      if (m.id && m.usage) foldCall(cur.calls, d, m, t);
+    }
+  }
+  return turns.map((c) => {
+    c.events.push({ t: c.last, e: "Stop", sid: c.sid, ...(cap.responses && c.answer ? { answer: cut(c.answer, LIMITS.answer) } : {}) });
+    return { harness: "claude", sid: c.sid, key: c.pid, events: c.events.sort((a, b) => a.t - b.t), extra: { calls: [...c.calls.values()].sort((a, b) => a.first - b.first) } };
+  }).filter((c) => c.sid);
+}
+
+/** Turns in a Codex session file (a "rollout"), as hook-style events. The format is internal to Codex. */
+export function codexTurns(text, cfg) {
+  const cap = cfg.capture;
+  const turns = [];
+  let cur = null;
+  let sid = "";
+  let cwd = "";
+  let lastTotal = "";
+  let thread = "";
+  let child = false;
+  for (const line of text.split("\n")) {
+    if (!line) continue;
+    let d;
+    try { d = JSON.parse(line); } catch { continue; }
+    const p = d && typeof d === "object" && d.payload && typeof d.payload === "object" ? d.payload : null;
+    const t = tsOf(d);
+    if (!p || t === null) continue;
+    if (d.type === "session_meta") {
+      // The first one describes this file. A subagent's file also carries a copy of its parent's, and a replay of
+      // the parent's earlier turns; neither is this thread's own work.
+      if (!thread) { thread = String(p.id || p.session_id || ""); sid = String(p.session_id || p.id || ""); child = !!p.parent_thread_id; if (typeof p.cwd === "string") cwd = p.cwd; }
+      continue;
+    }
+    if (d.type === "turn_context") { if (typeof p.cwd === "string") cwd = p.cwd; if (cur && typeof p.model === "string") { cur.model = p.model; cur.events[0].cwd = cwd; } continue; }
+    if (d.type === "event_msg" && p.type === "task_started") {
+      cur = { pid: String(p.turn_id || turns.length), events: [{ t, e: "UserPromptSubmit", sid, pid: String(p.turn_id || turns.length), cwd }], model: null, prompt: "", answer: "", done: false, last: t, pending: new Map(), prev: t };
+      turns.push(cur);
+      continue;
+    }
+    if (!cur) continue;
+    cur.last = Math.max(cur.last, t);
+    if (d.type === "event_msg") {
+      if (p.type === "user_message" && typeof p.message === "string") cur.prompt = p.message;
+      else if (p.type === "agent_message" && typeof p.message === "string") cur.answer = p.message;
+      else if (p.type === "task_complete") { cur.done = true; if (typeof p.last_agent_message === "string") cur.answer = p.last_agent_message; cur.events.push({ t, e: "Stop", sid }); }
+      else if (p.type === "token_count" && p.info && p.info.last_token_usage) {
+        const total = JSON.stringify(p.info.total_token_usage || null);
+        if (total !== lastTotal) cur.events.push({ t, e: "PostModelRequest", sid, usage: p.info.last_token_usage, status: "completed" }); // an unchanged total is a repeat of the last report
+        lastTotal = total;
+      }
+    } else if (d.type === "response_item") {
+      const kind = String(p.type || "");
+      if (kind === "message" && p.role === "user" && !cur.prompt) cur.firstUser = textOf(p.content) || cur.firstUser;
+      else if (kind === "message" && p.role === "assistant") cur.answer = textOf(p.content) || cur.answer;
+      else if (typeof p.call_id === "string" && /_call$/.test(kind)) {
+        const name = String(p.name || (kind === "local_shell_call" ? "shell" : kind.replace(/_call$/, "")));
+        cur.pending.set(p.call_id, name);
+        cur.events.push({ t, e: "PreToolUse", sid, tid: p.call_id, tool: name, ...(cap.tool_io ? { input: cut(p.arguments ?? p.input ?? p.action ?? "", LIMITS.tool) } : {}) });
+      } else if (typeof p.call_id === "string" && /_output$/.test(kind)) {
+        cur.events.push({ t, e: "PostToolUse", sid, tid: p.call_id, tool: cur.pending.get(p.call_id) || "tool", ...(cap.tool_io ? { output: cut(p.output ?? "", LIMITS.tool) } : {}) });
+      }
+    }
+  }
+  return turns.filter((c) => sid && !(child && !c.events.some((e) => e.e === "PostModelRequest"))).map((c) => {
+    const first = c.events[0];
+    const prompt = c.prompt || c.firstUser || "";
+    if (cap.prompts && prompt) first.prompt = cut(prompt, LIMITS.prompt);
+    for (const e of c.events) { e.sid = sid; if (c.model) e.model = c.model; }
+    const stop = c.events.find((e) => e.e === "Stop");
+    if (stop && cap.responses && c.answer) stop.answer = cut(c.answer, LIMITS.answer);
+    return { harness: "codex", sid, key: thread === sid ? c.pid : `${thread}:${c.pid}`, events: c.events.sort((a, b) => a.t - b.t), extra: {} };
+  });
+}
+
+function sessionFiles(root, since, match, depth) {
+  const out = [];
+  const walk = (dir, left) => {
+    let names = [];
+    try { names = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const n of names) {
+      const path = join(dir, n.name);
+      if (n.isDirectory()) { if (left > 0 && n.name !== "subagents") walk(path, left - 1); continue; }
+      if (!match.test(n.name)) continue;
+      try { const st = statSync(path); if (st.mtimeMs >= since && st.size <= LIMITS.transcriptBytes) out.push(path); } catch { /* vanished */ }
+    }
+  };
+  walk(root, depth);
+  return out.sort();
+}
+
+async function importHistory(a, say) {
+  const cfg = loadConfig();
+  if (!cfg && !a["dry-run"]) throw new Error("Not installed. Run install first, or add --dry-run to only count what would be sent.");
+  const use = cfg || { user: defaultUser(), capture: { prompts: true, responses: true, tool_io: false } };
+  const days = Math.max(1, Math.min(365, Number(a.days) || 30));
+  const since = Date.now() - days * 86_400_000;
+  const want = String(a.tools || "claude,codex").split(",").map((s) => s.trim());
+  const sources = [
+    want.includes("claude") && { label: "Claude Code", files: sessionFiles(join(claudeDir(), "projects"), since, /\.jsonl$/, 1), read: claudeTurns },
+    want.includes("codex") && { label: "Codex", files: sessionFiles(join(codexDir(), "sessions"), since, /^rollout-.*\.jsonl$/, 4), read: codexTurns },
+  ].filter(Boolean);
+  let batch = [];
+  let batchSpans = 0;
+  let sent = 0;
+  let failed = 0;
+  const send = async () => {
+    if (!batch.length || a["dry-run"]) { batch = []; batchSpans = 0; return; }
+    const body = { resourceSpans: batch.flatMap((b) => b.resourceSpans) };
+    let status = 0;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try { status = await post(use, body, 30_000); } catch { status = 0; }
+      if (status !== 429 && status !== 0 && status < 500) break;
+      await sleep(3000 * (attempt + 1));
+    }
+    if (status >= 200 && status < 300) sent += batchSpans; else { failed += batchSpans; log(`import batch failed with status ${status}`); }
+    batch = [];
+    batchSpans = 0;
+  };
+  for (const src of sources) {
+    let turns = 0, spans = 0, tokens = 0, sessions = 0, skipped = 0;
+    for (const file of src.files) {
+      let list = [];
+      try { list = src.read(readFileSync(file, "utf8"), use); } catch { skipped++; continue; }
+      const recent = list.filter((x) => x.events[x.events.length - 1].t >= since);
+      if (recent.length) sessions++;
+      for (const x of recent) {
+        const turn = buildTurn(x.harness, use, x.events.slice(0, LIMITS.eventsPerTurn), { ...x.extra, seed: `${x.harness}:${x.sid}:${x.key}` });
+        if (!turn) continue;
+        turns++;
+        spans += turn.spans.length;
+        for (const s of turn.spans) tokens += s.attrs["llm.token_count.total"] || 0;
+        batch.push(toOtlp(turn));
+        batchSpans += turn.spans.length;
+        if (batchSpans >= 600) await send();
+      }
+    }
+    await send();
+    say(`- ${src.label}: ${sessions} session file(s), ${turns} turn(s), ${spans} step(s), ${tokens.toLocaleString("en-US")} tokens${skipped ? `, ${skipped} file(s) could not be read` : ""}`);
+  }
+  if (a["dry-run"]) say(`Dry run: nothing was sent. Last ${days} day(s), as ${use.user}.`);
+  else say(`Sent ${sent.toLocaleString("en-US")} step(s) from the last ${days} day(s) as ${use.user}${failed ? `; ${failed.toLocaleString("en-US")} were not accepted (see ${join(dataDir(), "geo-trace.log")})` : ""}.`);
+  return failed ? 1 : 0;
 }
 
 // ------------------------------------------------------------------ install
@@ -563,9 +765,10 @@ async function main(argv) {
       const s = await post(cfg, toOtlp(testTurn(cfg))).catch(() => 0);
       say(s >= 200 && s < 300 ? "A test turn was accepted. It appears under Traces." : `The test turn was not accepted (${s === 0 ? "server not reached" : `status ${s}`}).`);
       return s >= 200 && s < 300 ? 0 : 1;
-    } else if (cmd === "print-managed") say(managedSnippet(a._[0]));
+    } else if (cmd === "import") return await importHistory(a, say);
+    else if (cmd === "print-managed") say(managedSnippet(a._[0]));
     else {
-      say("geo-trace: send Claude Code and Codex sessions to GEO Observability\n\n  install --endpoint <url> --key <ingest key> [--user <email>] [--tools claude,codex] [--no-content] [--tool-content]\n  status\n  test\n  uninstall\n  print-managed <claude|codex>");
+      say("geo-trace: send Claude Code and Codex sessions to GEO Observability\n\n  install --endpoint <url> --key <ingest key> [--user <email>] [--tools claude,codex] [--no-content] [--tool-content]\n  status\n  test\n  import [--days 30] [--tools claude,codex] [--dry-run]   send sessions already on this machine\n  uninstall\n  print-managed <claude|codex>");
       return cmd ? 1 : 0;
     }
     return 0;
