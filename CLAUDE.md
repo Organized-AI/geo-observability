@@ -13,7 +13,7 @@ AI search visibility (AEO/GEO) tracking with an observability layer, for client 
 ## Project structure
 - `src/engines/` provider clients + stub + registry · `src/judge/` mention matching and LLM judge
 - `src/metrics/` filters, reports, rollups · `src/observability/` bot/referral classify, ingest, Pages table
-- `src/tracing/` LLM tracing: OTLP decode, OpenInference attribute reading, span store, queries · `src/routes/tracing.ts` portal API at `/api/tracing`
+- `src/tracing/` LLM tracing: OTLP decode, OpenInference attribute reading, span store, queries · `src/routes/tracing.ts` portal API at `/api/tracing` · `public/trace/geo-trace.mjs` hook script and installer for Claude Code and Codex (tests in `test-scripts/`)
 - `src/workflows/` scheduler, pipeline steps, Workflow classes · `src/insights/` insights and actions
 - `src/routes/` portal API, public v1 API · `src/mcp/` MCP server · `src/billing/` Stripe client, metering push, webhooks, gating · `src/routes/billing.ts` signup/checkout/portal/webhook
 - `public/app` portal · `public/signup` self-serve signup · `public/index.html` landing · `public/docs` generated docs · `edge/` client-zone tap Worker
