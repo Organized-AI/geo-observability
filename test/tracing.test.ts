@@ -4,7 +4,7 @@ import type { Env } from "../src/env";
 import { fitAttributes, LIMITS } from "../src/tracing/store";
 import { TenantDB } from "../src/lib/db";
 import { pruneTenant, pruneTraces, retentionDays } from "../src/tracing/retention";
-import { generateDailyReports, generateTenantReports, observe, toolKind, type PersonSummary } from "../src/tracing/people";
+import { generateDailyReports, generateTenantReports, observe, toolKind, type PersonSummary, type TeamSummary } from "../src/tracing/people";
 import { b64ToBytes, OTLP_JSON, OTLP_PROTOBUF_B64, OTLP_PROTOBUF_GZIP_B64 } from "./fixtures/otlp";
 
 const env = rawEnv as unknown as Env;
@@ -133,6 +133,21 @@ describe("OTLP ingest", () => {
       name: "plan_trip", kind: "CHAIN", root_span_id: hex(1, 16), span_count: 3, llm_count: 2, prompt_tokens: 300, completion_tokens: 20, total_tokens: 320, cost_micros: 4000,
       start_ms: BASE, end_ms: BASE + 1500, input_preview: "Plan a weekend in Lisbon", output_preview: "Here is a two-day plan.", model: "claude-sonnet-5-5",
     });
+  });
+
+  it("replaces a span that was sent while still running with its finished copy", async () => {
+    const root = (dur: number, output?: string): SpanSpec => ({ trace: 0xa7, span: 1, name: "turn", start: 0, dur, attrs: { "openinference.span.kind": "AGENT", "input.value": "long job", ...(output ? { "output.value": output } : { "turn.incomplete": 1 }) } });
+    const llm = (span: number, start: number): SpanSpec => ({ trace: 0xa7, span, parent: 1, name: "model response", start, dur: 100, attrs: { "openinference.span.kind": "LLM", "llm.token_count.total": 50 } });
+    await sendJson(keyA, otlpJson([root(1000), llm(2, 100)]));
+    expect(await traceRow(tenantA, hex(0xa7, 32))).toMatchObject({ span_count: 2, total_tokens: 50, end_ms: BASE + 1000, output_preview: null });
+    // The finished turn: same ids, a longer root with its answer, one more model call.
+    await sendJson(keyA, otlpJson([root(5000, "All done."), llm(2, 100), llm(3, 3000)]));
+    expect(await traceRow(tenantA, hex(0xa7, 32))).toMatchObject({ span_count: 3, total_tokens: 100, end_ms: BASE + 5000, output_preview: "All done." });
+    const stored = await env.DB.prepare("SELECT attributes FROM llm_spans WHERE tenant_id = ?1 AND trace_id = ?2 AND span_id = ?3").bind(tenantA, hex(0xa7, 32), hex(1, 16)).first<{ attributes: string }>();
+    expect(JSON.parse(stored!.attributes)["turn.incomplete"]).toBeUndefined();
+    // An older, shorter copy arriving late does not undo it.
+    await sendJson(keyA, otlpJson([root(1000), llm(2, 100)]));
+    expect(await traceRow(tenantA, hex(0xa7, 32))).toMatchObject({ span_count: 3, total_tokens: 100, end_ms: BASE + 5000, output_preview: "All done." });
   });
 
   it("names the app from the header, then the resource", async () => {
@@ -292,22 +307,23 @@ describe("tracing API", () => {
   });
 
   it("totals usage by person and filters traces to one person", async () => {
-    const people = await get("/people");
-    expect(people.status).toBe(200);
-    expect(people.json.map((p: any) => [p.user_id, p.traces, p.sessions, p.total_tokens, p.errors, p.active_days, p.apps])).toEqual([
-      ["user-7", 1, 1, 908, 1, 1, ["support-bot-prod"]],
-      ["u1", 6, 2, 60, 1, 1, ["paging-app"]],
-    ]);
-    expect(people.json[1].last_active_ms).toBe(BASE + 10_000 + 5 * 1000 + 300);
+    // These are ordinary apps, so their users are end users: they show when the app is chosen, not as "people".
+    expect((await get("/people")).json).toEqual([]);
     const app = (await get("/apps")).json.find((x: any) => x.name === "paging-app").id;
-    expect((await get(`/people?app=${app}`)).json.map((p: any) => p.user_id)).toEqual(["u1"]);
-    expect((await get("/people?from=2026-11-21")).json).toEqual([]);
+    const fixtureApp = (await get("/apps")).json.find((x: any) => x.name === "support-bot-prod");
+    expect(fixtureApp.kind).toBe("app");
+    const people = await get(`/people?app=${app}`);
+    expect(people.status).toBe(200);
+    expect(people.json.map((p: any) => [p.user_id, p.traces, p.sessions, p.total_tokens, p.errors, p.active_days, p.apps])).toEqual([["u1", 6, 2, 60, 1, 1, ["paging-app"]]]);
+    expect(people.json[0].last_active_ms).toBe(BASE + 10_000 + 5 * 1000 + 300);
+    expect((await get(`/people?app=${fixtureApp.id}`)).json.map((p: any) => [p.user_id, p.total_tokens])).toEqual([["user-7", 908]]);
+    expect((await get(`/people?app=${app}&from=2026-11-21`)).json).toEqual([]);
     const mine = await get("/traces?user=u1&limit=200");
     expect(mine.json.items).toHaveLength(6);
     expect(mine.json.totals).toMatchObject({ traces: 6, total_tokens: 60 });
     expect((await get("/traces?user=nobody")).json.items).toEqual([]);
     // Another workspace sees only its own people.
-    expect((await get("/people", "trace-b")).json.map((p: any) => p.user_id)).toEqual(["user-7"]);
+    expect((await get(`/people?app=${fixtureApp.id}`, "trace-b")).json).toEqual([]);
     expect((await get("/traces?user=u1", "trace-b")).json.items).toEqual([]);
   });
 
@@ -358,13 +374,14 @@ describe("tracing API", () => {
     expect(new Set(all.map((r: any) => r.trace_id)).size).toBe(25);
     expect(all.every((r: any) => r.spans.length === 1 && r.spans[0].attributes["input.value"].startsWith("question "))).toBe(true);
 
-    const people = await raw("/export/people.csv");
+    const fixtureAppId = (await get("/apps")).json.find((x: any) => x.name === "support-bot-prod").id;
+    const people = await raw(`/export/people.csv?app=${fixtureAppId}`);
     expect(people.text.trim().split("\n").slice(0, 2)).toEqual(["person,tools,sessions,turns,active_days,prompt_tokens,completion_tokens,total_tokens,cost_usd,errors,last_active_at", "user-7,support-bot-prod,1,1,1,812,96,908,0.001234,1,2025-11-23T12:13:22.500Z"]);
 
     // Another workspace exports only its own.
     expect((await raw("/export/traces.csv", "trace-b")).text.trim().split("\n")).toHaveLength(2);
     expect((await raw(`/export/traces.jsonl?app=${app}`, "trace-b")).text).toBe("");
-    expect((await raw("/export/people.csv", "trace-b")).text.trim().split("\n")).toHaveLength(2);
+    expect((await raw("/export/people.csv", "trace-b")).text.trim().split("\n")).toHaveLength(1);
   });
 
   it("deletes traces older than a quarter and nothing else", async () => {
@@ -456,6 +473,50 @@ describe("tracing API", () => {
     expect((await get(`/people/${user}?from=2026-11-20&to=2026-11-20`, "trace-b")).status).toBe(404);
     expect((await get("/people/nobody?from=2026-11-20&to=2026-11-20")).status).toBe(404);
     expect(toolKind("mcp__claude_ai_Slack__slack_send_message")).toEqual({ kind: "mcp", server: "claude_ai_Slack" });
+  });
+
+  it("compares a person with the period before, and sums up what the team uses", async () => {
+    const user = encodeURIComponent("dev@acme.test");
+    // 19th to 20th against the two days before: 3 turns now, 10 then.
+    const s = await get(`/people/${user}?from=2026-11-19&to=2026-11-20`);
+    expect(s.json.totals.turns).toBe(3);
+    expect(s.json.previous).toMatchObject({ turns: 10, tool_calls: 0 });
+    expect((await get(`/people/${user}?from=2026-11-20&to=2026-11-20`)).json.previous).toBeNull();
+
+    // A second person on the same day who shares one skill and brings one of their own.
+    const who = { "user.id": "sam@acme.test", "harness.name": "codex" };
+    const tool = (span: number, name: string, attrs: Record<string, string | number> = {}): SpanSpec => ({ trace: 0x9200, span, parent: 1, name, start: 6_000_000 + span * 1000, dur: 100, attrs: { "openinference.span.kind": "TOOL", ...who, ...attrs } });
+    await sendJson(keyA, otlpJson([
+      { trace: 0x9200, span: 1, name: "turn", start: 6_000_000, dur: 30_000, attrs: { "openinference.span.kind": "AGENT", "session.id": "codex:t1", "slash.command": "review", ...who } },
+      tool(2, "Skill", { "skill.name": "stripe:test-cards", "plugin.name": "stripe" }),
+      tool(3, "Skill", { "skill.name": "release-notes" }), tool(4, "Skill", { "skill.name": "release-notes" }), tool(5, "Skill", { "skill.name": "release-notes" }),
+      tool(6, "mcp__linear__get_issue"),
+    ], { "service.name": "codex" }));
+    const team = await get<TeamSummary>("/team?from=2026-11-20&to=2026-11-20");
+    expect(team.status).toBe(200);
+    // Only coding tools count: u1 and user-7 are end users of ordinary apps.
+    expect((await get("/apps")).json.filter((x: any) => x.kind === "coding_tool").map((x: any) => x.name).sort()).toEqual(["claude-code", "codex"]);
+    expect((await get("/people?from=2026-11-20&to=2026-11-20")).json.map((p: any) => p.user_id).sort()).toEqual(["dev@acme.test", "sam@acme.test"]);
+    expect(team.json).toMatchObject({ people: 2, turns: 3 + 1, tool_calls: 9 + 5, tool_failures: 2, adoption: { skills: 2, subagents: 1, plugins: 2, mcp: 2, commands: 2 } });
+    const item = (kind: string, name: string) => team.json.items.find((i) => i.kind === kind && i.name === name);
+    expect(item("skill", "stripe:test-cards")).toEqual({ name: "stripe:test-cards", kind: "skill", people: 2, calls: 2, failures: 0, who: ["dev@acme.test", "sam@acme.test"] });
+    expect(item("skill", "release-notes")).toMatchObject({ people: 1, calls: 3, who: ["sam@acme.test"] });
+    expect(item("plugin", "stripe")).toMatchObject({ people: 2, calls: 2 });
+    expect(item("plugin", "browser-use")).toMatchObject({ people: 1, calls: 1 });
+    expect(item("mcp", "linear")).toMatchObject({ people: 1, who: ["sam@acme.test"] });
+    expect(item("command", "review")).toMatchObject({ people: 2, calls: 2 });
+    expect(item("tool", "Bash")).toMatchObject({ people: 1, calls: 5, failures: 2 });
+    expect(team.json.items[0]!.people).toBe(2); // most widely used first
+    expect(team.json.observations.map((o) => [o.level, o.title])).toEqual([
+      ["tip", "1 skill, plugin or server used by one person only"],
+      ["tip", "1 of 2 people delegate to subagents"],
+      ["good", "Everyone uses stripe, stripe:test-cards"],
+    ]);
+    expect(team.json.observations[0]!.detail).toContain("release-notes (sam@acme.test)");
+    // Narrowed to one app, and seen from another workspace.
+    const codexApp = (await get("/apps")).json.find((x: any) => x.name === "codex").id;
+    expect((await get<TeamSummary>(`/team?from=2026-11-20&to=2026-11-20&app=${codexApp}`)).json).toMatchObject({ people: 1, turns: 1, tool_calls: 5 });
+    expect((await get<TeamSummary>("/team?from=2026-11-20&to=2026-11-20", "trace-b")).json).toMatchObject({ people: 0, turns: 0, items: [], observations: [] });
   });
 
   it("writes a daily report per person with observations drawn from the numbers", async () => {

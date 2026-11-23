@@ -300,7 +300,7 @@ export function buildTurn(harness, cfg, events, extra = {}) {
       const u = e.usage || null;
       const n = (x) => (typeof x === "number" && x >= 0 ? x : 0);
       const usage = u ? { prompt: n(u.input_tokens), completion: n(u.output_tokens), cacheRead: n(u.cached_input_tokens), cacheWrite: n(u.cache_write_input_tokens), reasoning: n(u.reasoning_output_tokens) } : null;
-      llm(e.rid || `request:${reqN++}`, parentOf(e), "model request", (e.rid && preReq.get(e.rid)) || prevT, e.t, e.model || model, usage, {}, e.status === "failed" ? e.err || "The model request failed." : null);
+      llm(`request:${reqN++}`, parentOf(e), "model request", (e.rid && preReq.get(e.rid)) || prevT, e.t, e.model || model, usage, {}, e.status === "failed" ? e.err || "The model request failed." : null);
     }
     prevT = e.t;
   }
@@ -403,6 +403,8 @@ async function flush(harness, cfg, _path, events) {
     extra.agentCalls = {};
     for (const e of events) if (e.e === "SubagentStop" && e.aid && e.atp) extra.agentCalls[e.aid] = readTranscript(e.atp, {});
   }
+  // The same identity an import of this turn would use, so a turn sent live and later imported is stored once.
+  if (start.sid && start.pid) extra.seed = `${harness}:${start.sid}:${start.pid}`;
   const turn = buildTurn(harness, cfg, events.slice(0, LIMITS.eventsPerTurn), extra);
   if (turn) await deliver(cfg, toOtlp(turn));
 }

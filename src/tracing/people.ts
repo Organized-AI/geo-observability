@@ -306,10 +306,10 @@ export async function buildReport(tdb: TenantDB, userId: string, day: string): P
   };
 }
 
-/** Writes the report for everyone in a workspace who was active on `day`. Returns how many were written. */
+/** Writes the report for everyone in a workspace who used a coding tool on `day`. Returns how many were written. */
 export async function generateTenantReports(tdb: TenantDB, day: string): Promise<number> {
   const { from, to } = dayRange(day);
-  const users = await tdb.all<{ user_id: string }>("SELECT DISTINCT user_id FROM llm_traces WHERE tenant_id = ?1 AND user_id IS NOT NULL AND start_ms >= ?2 AND start_ms <= ?3 LIMIT 2000", from, to);
+  const users = await tdb.all<{ user_id: string }>("SELECT DISTINCT t.user_id AS user_id FROM llm_traces t JOIN trace_apps a ON a.id = t.app_id WHERE t.tenant_id = ?1 AND a.kind = 'coding_tool' AND t.user_id IS NOT NULL AND t.start_ms >= ?2 AND t.start_ms <= ?3 LIMIT 2000", from, to);
   for (const u of users) {
     const report = await buildReport(tdb, u.user_id, day);
     await tdb.run(
@@ -349,4 +349,114 @@ export async function getReport(tdb: TenantDB, userId: string, day: string): Pro
   if (stored) return { ...stored, stored: true };
   const live = await buildReport(tdb, userId, day);
   return live.totals.turns ? { ...live, stored: false } : null;
+}
+
+// ------------------------------------------------------------------ the team
+
+export interface TeamItem {
+  name: string;
+  kind: "tool" | "skill" | "plugin" | "mcp" | "subagent" | "command";
+  people: number;
+  calls: number;
+  failures: number;
+  /** Who uses it, heaviest first (up to five). */
+  who: string[];
+}
+
+export interface TeamSummary {
+  people: number;
+  turns: number;
+  total_tokens: number;
+  tool_calls: number;
+  tool_failures: number;
+  /** How many people used each kind of capability at least once. */
+  adoption: { skills: number; subagents: number; plugins: number; mcp: number; commands: number };
+  items: TeamItem[];
+  observations: Observation[];
+}
+
+/** What the whole team uses, and how unevenly: the starting point for sharing what works. */
+export async function teamSummary(tdb: TenantDB, fromMs: number, toMs: number, appId?: string): Promise<TeamSummary> {
+  const app = appId ? " AND s.app_id = ?4" : " AND s.app_id IN (SELECT id FROM trace_apps WHERE tenant_id = ?1 AND kind = 'coding_tool')";
+  const binds = appId ? [fromMs, toMs, appId] : [fromMs, toMs];
+  const [totals, toolRows, rootRows] = await Promise.all([
+    tdb.first<{ people: number; turns: number; total_tokens: number }>(
+      `SELECT COUNT(DISTINCT s.user_id) AS people, COUNT(*) AS turns, COALESCE(SUM(s.total_tokens), 0) AS total_tokens
+       FROM llm_traces s WHERE s.tenant_id = ?1 AND s.user_id IS NOT NULL AND s.start_ms >= ?2 AND s.start_ms <= ?3${app}`,
+      ...binds,
+    ),
+    tdb.all<{ user_id: string; name: string; skill: string | null; plugin: string | null; subagent: string | null; calls: number; failures: number }>(
+      `SELECT s.user_id AS user_id, s.name AS name, ${attr("skill.name")} AS skill, ${attr("plugin.name")} AS plugin, ${attr("subagent.type")} AS subagent,
+              COUNT(*) AS calls, COALESCE(SUM(s.status_code = 'ERROR'), 0) AS failures
+       FROM llm_spans s WHERE s.tenant_id = ?1 AND s.user_id IS NOT NULL AND s.start_ms >= ?2 AND s.start_ms <= ?3 AND s.kind = 'TOOL'${app}
+       GROUP BY s.user_id, s.name, skill, plugin, subagent LIMIT 20000`,
+      ...binds,
+    ),
+    tdb.all<{ user_id: string; command: string; calls: number }>(
+      `SELECT s.user_id AS user_id, ${attr("slash.command")} AS command, COUNT(*) AS calls
+       FROM llm_spans s WHERE s.tenant_id = ?1 AND s.user_id IS NOT NULL AND s.start_ms >= ?2 AND s.start_ms <= ?3 AND s.parent_span_id IS NULL
+         AND ${attr("slash.command")} IS NOT NULL${app}
+       GROUP BY s.user_id, command LIMIT 5000`,
+      ...binds,
+    ),
+  ]);
+
+  const items = new Map<string, { name: string; kind: TeamItem["kind"]; calls: number; failures: number; by: Map<string, number> }>();
+  const add = (kind: TeamItem["kind"], name: string, user: string, calls: number, failures: number) => {
+    const key = `${kind}:${name}`;
+    const cur = items.get(key) ?? { name, kind, calls: 0, failures: 0, by: new Map<string, number>() };
+    cur.calls += calls;
+    cur.failures += failures;
+    cur.by.set(user, (cur.by.get(user) ?? 0) + calls);
+    items.set(key, cur);
+  };
+  let toolCalls = 0;
+  let toolFailures = 0;
+  for (const r of toolRows) {
+    toolCalls += r.calls;
+    toolFailures += r.failures;
+    const k = toolKind(r.name);
+    add("tool", r.name, r.user_id, r.calls, r.failures);
+    if (k.server) add("mcp", k.server, r.user_id, r.calls, r.failures);
+    const plugin = k.plugin ?? r.plugin;
+    if (plugin) add("plugin", plugin, r.user_id, r.calls, r.failures);
+    if (r.skill) add("skill", r.skill, r.user_id, r.calls, r.failures);
+    if (r.subagent) add("subagent", r.subagent, r.user_id, r.calls, r.failures);
+  }
+  for (const r of rootRows) add("command", r.command, r.user_id, r.calls, 0);
+
+  const list: TeamItem[] = [...items.values()]
+    .map((i) => ({ name: i.name, kind: i.kind, people: i.by.size, calls: i.calls, failures: i.failures, who: [...i.by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([u]) => u) }))
+    .sort((a, b) => b.people - a.people || b.calls - a.calls || a.name.localeCompare(b.name));
+  const usersOf = (kind: TeamItem["kind"]) => new Set([...items.values()].filter((i) => i.kind === kind).flatMap((i) => [...i.by.keys()])).size;
+  const people = totals?.people ?? 0;
+  const adoption = { skills: usersOf("skill"), subagents: usersOf("subagent"), plugins: usersOf("plugin"), mcp: usersOf("mcp"), commands: usersOf("command") };
+
+  const obs: Observation[] = [];
+  if (people >= 2) {
+    for (const t of list.filter((i) => i.kind === "tool" && i.calls >= 20 && i.failures / i.calls >= 0.15).slice(0, 2)) {
+      obs.push({ level: "watch", title: `${t.name} fails ${pct(t.failures / t.calls)} of the time across the team`, detail: `${int(t.failures)} of ${int(t.calls)} calls failed, for ${plural(t.people, "person", "people")}. A shared cause (a permission, a missing tool on some machines) is worth ruling out.` });
+    }
+    const solo = list.filter((i) => (i.kind === "skill" || i.kind === "plugin" || i.kind === "mcp") && i.people === 1 && i.calls >= 3);
+    if (solo.length) {
+      obs.push({ level: "tip", title: `${plural(solo.length, "skill, plugin or server", "skills, plugins or servers")} used by one person only`, detail: `${solo.slice(0, 5).map((i) => `${i.name} (${i.who[0]})`).join(", ")}. If these save time, the rest of the team may not know about them.` });
+    }
+    if (adoption.skills < people && adoption.skills > 0) obs.push({ level: "tip", title: `${adoption.skills} of ${people} people use skills`, detail: `Most used: ${list.filter((i) => i.kind === "skill").slice(0, 3).map((i) => i.name).join(", ")}.` });
+    if (adoption.skills === 0 && (totals?.turns ?? 0) >= 20) obs.push({ level: "tip", title: "Nobody used a skill", detail: "Skills package a repeated job (a review, a release, a house style) so it takes one prompt. None were used in this range." });
+    if (adoption.subagents < people && adoption.subagents > 0) obs.push({ level: "tip", title: `${adoption.subagents} of ${people} people delegate to subagents`, detail: "Subagents keep long searches and side tasks out of the main conversation." });
+    const shared = list.filter((i) => (i.kind === "skill" || i.kind === "plugin" || i.kind === "mcp") && i.people === people);
+    if (shared.length) obs.push({ level: "good", title: `Everyone uses ${shared.slice(0, 4).map((i) => i.name).join(", ")}`, detail: "Shared by the whole team in this range." });
+    if (toolCalls >= 50 && toolFailures / toolCalls < 0.02) obs.push({ level: "good", title: `${pct(1 - toolFailures / toolCalls)} of tool calls succeeded`, detail: `${int(toolFailures)} failures in ${int(toolCalls)} calls across the team.` });
+  }
+  const order = { watch: 0, tip: 1, good: 2 } as const;
+  return {
+    people,
+    turns: totals?.turns ?? 0,
+    total_tokens: totals?.total_tokens ?? 0,
+    tool_calls: toolCalls,
+    tool_failures: toolFailures,
+    adoption,
+    items: list.slice(0, 200),
+    observations: obs.sort((a, b) => order[a.level] - order[b.level]).slice(0, 8),
+  };
 }

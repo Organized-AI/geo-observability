@@ -195,7 +195,7 @@ export function demoTraces(tenant: string, dayList: string[]): string[] {
   const apps = { support: "app_demo_support", docs: "app_demo_docs", claude: "app_demo_claude", codex: "app_demo_codex" };
   const lastSeen = `${dayList[dayList.length - 1]}T18:00:00.000Z`;
   for (const [id, name] of [[apps.support, "support-assistant"], [apps.docs, "docs-search"], [apps.claude, "claude-code"], [apps.codex, "codex"]]) {
-    out.push(`INSERT INTO trace_apps (id, tenant_id, name, last_seen_at) VALUES ('${id}', '${tenant}', '${name}', '${lastSeen}');`);
+    out.push(`INSERT INTO trace_apps (id, tenant_id, name, kind, last_seen_at) VALUES ('${id}', '${tenant}', '${name}', '${id === apps.claude || id === apps.codex ? "coding_tool" : "app"}', '${lastSeen}');`);
   }
 
   const emit = (appId: string, traceId: string, spans: DemoSpan[]) => {

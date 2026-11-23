@@ -13,10 +13,13 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - A **People** tab under Traces: tools, sessions, turns and tokens per person, with a filter from a person to their traces.
 - A page per person: tools with failure rates and timing, skills, plugins, MCP servers, subagents, slash commands, shell programs, models, projects and sessions. The geo-trace script now sends these names with every tool call (never the inputs).
 - Daily reports per person, written after each day: the day's numbers against their own previous week, with observations labelled Watch, Try or Good. Rules only; nothing reads what was typed.
+- Across the team, on the People tab: how many people use skills, subagents, plugins, MCP servers and slash commands, who uses each, and what stands out. A person's page shows the change from the period before.
+- People and daily reports count coding-tool users only; end users of your own apps show when that app is chosen.
+- A turn sent live and imported later is stored once, and a turn imported while still running is completed by its finished copy.
 - Quarterly retention: traces are deleted 92 days after they start (hourly job; `TRACE_RETENTION_DAYS` changes the window). The Traces page says when traces are within 14 days of deletion.
 - Export from the Traces page, using the filters on screen: traces as CSV, full traces with every step as JSON Lines, and people as CSV.
 - `/api/tracing` for the portal (apps, traces, spans, sessions, people, setup) and three user guide pages under Integrations.
-- Migrations `0006_llm_tracing.sql` (`trace_apps`, `llm_spans`, `llm_traces`) `0007_trace_people.sql` and `0008_trace_retention.sql` (indexes) and `0009_trace_person_reports.sql` (`trace_reports`). Apply them before deploying.
+- Migrations `0006_llm_tracing.sql` (`trace_apps`, `llm_spans`, `llm_traces`) `0007_trace_people.sql` and `0008_trace_retention.sql` (indexes) `0009_trace_person_reports.sql` (`trace_reports`) and `0010_trace_app_kind.sql`. Apply them before deploying.
 
 ## [1.4.1] - 2026-11-14
 

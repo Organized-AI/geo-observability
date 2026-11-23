@@ -173,7 +173,7 @@ node geo-trace.mjs install \
 node ~/.geo-observability/geo-trace.mjs import --dry-run    # count what would be sent, send nothing
 </code></pre>
 <p>Traces are kept for 92 days, so importing further back than that only brings in turns that are deleted again within the hour.</p>
-<p>It uses the same content switches as the installer. Running it again is safe: a turn that was already sent isn&#39;t added twice, and a turn that was still running picks up its later steps. Turns sent live by the hooks and the same turns imported afterwards are separate copies, so import history first, or only for the time before you connected.</p>
+<p>It uses the same content switches as the installer. Running it again is safe: a turn that was already sent isn&#39;t added twice, and a turn that was still running picks up its later steps. A turn sent live by the hooks and imported later is stored once.</p>
 <h2 id="check-pause-remove"><a class="anchor" href="#check-pause-remove" aria-hidden="true" tabindex="-1">#</a>Check, pause, remove</h2>
 <pre><code class="language-bash">node ~/.geo-observability/geo-trace.mjs status      # what is connected, and anything waiting to send
 node ~/.geo-observability/geo-trace.mjs test        # send a test turn
@@ -195,9 +195,12 @@ node ~/.geo-observability/geo-trace.mjs uninstall   # remove the hooks and the s
 <p><code>node geo-trace.mjs print-managed claude</code> and <code>print-managed codex</code> print the hooks block to paste in. The script and its <code>config.json</code> still have to be placed on each machine, for example with your device management tool.</p>
 <h2 id="reading-the-results"><a class="anchor" href="#reading-the-results" aria-hidden="true" tabindex="-1">#</a>Reading the results</h2>
 <p>Open <strong>Traces</strong> and choose the <strong>People</strong> tab: one row per person with their tools, sessions, turns and tokens for the date range. Select a person to open their page.</p>
+<p>People here means people using coding tools. Users of your own LLM apps are your customers, so they&#39;re left out unless you pick that app in the app filter.</p>
+<h3 id="across-the-team"><a class="anchor" href="#across-the-team" aria-hidden="true" tabindex="-1">#</a>Across the team</h3>
+<p>Below the list, <strong>Across the team</strong> shows how many people use skills, subagents, plugins, MCP servers and slash commands, every one of those in use with who uses it, and what stands out: something only one person uses, a tool that fails for several people, something everyone relies on. It&#39;s the quickest way to find a habit worth sharing.</p>
 <h3 id="a-persons-page"><a class="anchor" href="#a-persons-page" aria-hidden="true" tabindex="-1">#</a>A person&#39;s page</h3>
 <ul>
-<li><strong>Headline numbers</strong>: turns, tokens, how much input was reused from cache, tool calls, tool failures, and turns that were cut short.</li>
+<li><strong>Headline numbers</strong>: turns, tokens, how much input was reused from cache, tool calls, tool failures, and turns that were cut short. Arrows show the change from the period of the same length just before.</li>
 <li><strong>Tools</strong>: every tool they used, how often, how often it failed and how long it took on average.</li>
 <li><strong>Skills, plugins, MCP servers, subagents, slash commands, shell programs</strong>: what they reach for, and what they never use.</li>
 <li><strong>Models and projects</strong>: where the tokens went.</li>

@@ -25,7 +25,7 @@ const like = (s: string) => `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
 export function listApps(tdb: TenantDB) {
   return tdb.all(
-    `SELECT a.id, a.name, a.created_at, a.last_seen_at,
+    `SELECT a.id, a.name, a.kind, a.created_at, a.last_seen_at,
             (SELECT COUNT(*) FROM llm_traces t WHERE t.tenant_id = ?1 AND t.app_id = a.id) AS trace_count
      FROM trace_apps a WHERE a.tenant_id = ?1 ORDER BY a.last_seen_at DESC, a.name`,
   );
@@ -151,7 +151,9 @@ export function listSessions(tdb: TenantDB, f: Pick<TraceFilters, "appId" | "fro
 export function listPeople(tdb: TenantDB, f: Pick<TraceFilters, "appId" | "fromMs" | "toMs" | "limit">) {
   const b = new Binds();
   const where = ["t.tenant_id = ?1", "t.user_id IS NOT NULL"];
+  // Without a chosen app, people are those using coding tools; an app's own end users show when that app is chosen.
   if (f.appId) where.push(`t.app_id = ${b.add(f.appId)}`);
+  else where.push("a.kind = 'coding_tool'");
   if (f.fromMs !== undefined) where.push(`t.start_ms >= ${b.add(f.fromMs)}`);
   if (f.toMs !== undefined) where.push(`t.start_ms <= ${b.add(f.toMs)}`);
   return tdb.all(

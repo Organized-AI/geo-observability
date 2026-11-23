@@ -232,6 +232,29 @@ async function peopleList(ctx, body, app) {
         h("button", { type: "button", class: "btn btn-primary", onclick: openSetup }, "Connect Claude Code or Codex")));
       return;
     }
+    const teamBox = h("div", null);
+    api("tracing/team", { query: { from: ctx.f.from, to: ctx.f.to, app } }).then((team) => {
+      if (!ctx.alive() || !team || team.people < 2) return;
+      const KINDS = { skill: "Skill", plugin: "Plugin", mcp: "MCP server", subagent: "Subagent", command: "Slash command" };
+      const extras = team.items.filter((i) => KINDS[i.kind]).slice(0, 40);
+      const of = (n) => `${fmt.int(n)} of ${fmt.int(team.people)}`;
+      teamBox.append(
+        h("h2", { class: "tr-section" }, "Across the team"),
+        h("div", { class: "tr-grid2" },
+          h("section", { class: "card", "aria-label": "Team observations" }, h("header", { class: "card-head" }, h("h2", { class: "card-title" }, "What stands out")),
+            h("div", { class: "card-body" },
+              h("dl", { class: "tr-adopt" }, [["Use skills", team.adoption.skills], ["Use subagents", team.adoption.subagents], ["Use plugins", team.adoption.plugins], ["Use MCP servers", team.adoption.mcp], ["Use slash commands", team.adoption.commands]]
+                .map(([k, n]) => h("div", null, h("dt", null, k), h("dd", { class: "num" }, of(n)), h("span", { class: "tr-track", "aria-hidden": "true" }, h("span", { class: "tr-bar", style: { left: "0", width: `${(n / team.people) * 100}%` } }))))),
+              team.observations.length
+                ? h("ul", { class: "tr-obs" }, team.observations.map((o) => h("li", { class: `tr-obs-${o.level}` }, badge(LEVEL[o.level][0], LEVEL[o.level][1]), h("div", null, h("p", { class: "tr-obs-title" }, o.title), h("p", { class: "small muted" }, o.detail)))))
+                : h("p", { class: "muted small" }, "Nothing stood out across the team in this range."))),
+          nameTable("Skills, plugins, servers and subagents in use", extras, [
+            { label: "Name", render: (i) => h("div", { class: "tr-name" }, h("span", { class: "tr-cellname" }, i.name), h("span", { class: "small muted" }, KINDS[i.kind])) },
+            { label: "People", num: true, render: (i) => of(i.people) },
+            { label: "Calls", num: true, class: "hide-sm", render: (i) => fmt.int(i.calls) },
+            { label: "Used by", class: "hide-sm tr-preview", render: (i) => h("span", { class: "small" }, i.who.join(", ")) },
+          ], "No skills, plugins, MCP servers or subagents were used in this range.")));
+    }).catch(() => {});
     const top = Math.max(1, ...list.map((p) => p.total_tokens || 0));
     const sum = (k) => list.reduce((n, p) => n + (p[k] || 0), 0);
     body.append(
@@ -251,7 +274,8 @@ async function peopleList(ctx, body, app) {
         { label: "Active days", num: true, class: "hide-sm", render: (p) => fmt.int(p.active_days) },
         { label: "Last active", class: "hide-sm", render: (p) => h("span", { class: "nowrap" }, when(p.last_active_ms)) },
       ], list, { label: "People" })),
-      h("p", { class: "small muted tr-foot" }, "Tokens include cached input, which is most of a coding session. A person is whoever the sending tool says they are."));
+      h("p", { class: "small muted tr-foot" }, "Tokens include cached input, which is most of a coding session. A person is whoever the sending tool says they are."),
+      teamBox);
   } catch (err) {
     clear(body).append(errorBox(err, () => { clear(body).append(skeleton(8)); peopleList(ctx, body, app); }));
   }
@@ -296,7 +320,20 @@ async function personPage(ctx, user) {
   if (!ctx.alive()) return;
   document.title = `${user} · Traces · GEO Observability`;
   const t = s.totals;
-  const kpi = (label, value, note) => h("div", { class: "kpi" }, h("span", { class: "kpi-label" }, label), h("span", { class: "kpi-value num" }, value), note ? h("span", { class: "kpi-help" }, note) : null);
+  const p = s.previous;
+  // Change against the period of the same length just before. `lowerIsBetter` only picks the colour.
+  const delta = (now, before, lowerIsBetter) => {
+    if (!p || !isNumber(now) || !isNumber(before)) return null;
+    if (before === 0 && now === 0) return null;
+    // Rates (a share of something) change in points; counts change in percent.
+    const isRate = lowerIsBetter !== undefined;
+    if (isRate && Math.round(Math.abs(now - before) * 100) === 0) return null;
+    const text = isRate ? `${now >= before ? "▲" : "▼"} ${Math.abs(Math.round((now - before) * 100))} pts` : before === 0 ? "new" : `${now >= before ? "▲" : "▼"} ${Math.abs(Math.round(((now - before) / before) * 100))}%`;
+    const better = lowerIsBetter === undefined || now === before ? "" : (now < before) === lowerIsBetter ? " tr-delta-good" : " tr-delta-bad";
+    return h("span", { class: `tr-delta${better}`, title: "Against the period of the same length just before" }, text);
+  };
+  const rate = (a, b) => (b ? a / b : 0);
+  const kpi = (label, value, note, change) => h("div", { class: "kpi" }, h("span", { class: "kpi-label" }, label), h("span", { class: "kpi-value num" }, value, change || null), note ? h("span", { class: "kpi-help" }, note) : null);
   const calls = { label: "Calls", num: true, render: (r) => fmt.int(r.calls) };
   const failed = { label: "Failed", num: true, render: (r) => (r.failures ? h("span", { class: "tr-fail" }, `${fmt.int(r.failures)} (${share(r.failures, r.calls)})`) : "0") };
   const named = (label) => ({ label, render: (r) => h("span", { class: "tr-cellname" }, r.name) });
@@ -320,12 +357,13 @@ async function personPage(ctx, user) {
         h("div", { class: "chat-meta wrap" }, s.apps.map((a) => h("span", { class: "badge" }, `${a.name} · ${plural(a.calls, "turn")}`)), h("span", { class: "small muted" }, `${fmt.dateLong(ctx.f.from)} to ${fmt.dateLong(ctx.f.to)}`))),
       h("div", { class: "page-actions" }, h("a", { class: "btn", href: hashFor(ctx, ["traces"], { user, tab: null }) }, "See their traces"))),
     h("div", { class: "kpis kpis-compact tr-kpis tr-kpis-6" },
-      kpi("Turns", fmt.int(t.turns), `${plural(t.sessions, "session")}, ${plural(t.active_days, "active day")}`),
-      kpi("Tokens", tokens(t.total_tokens), `${fmt.int(t.model_calls)} model calls`),
-      kpi("Reused from cache", share(t.cache_read_tokens, t.prompt_tokens), "of input tokens"),
-      kpi("Tool calls", fmt.int(t.tool_calls), t.turns ? `${(t.tool_calls / t.turns).toFixed(1)} a turn` : null),
-      kpi("Tool failures", share(t.tool_failures, t.tool_calls), `${fmt.int(t.tool_failures)} failed`),
-      kpi("Turns cut short", share(t.unfinished_turns, t.turns), `${fmt.int(t.unfinished_turns)} of ${fmt.int(t.turns)}`)),
+      kpi("Turns", fmt.int(t.turns), `${plural(t.sessions, "session")}, ${plural(t.active_days, "active day")}`, delta(t.turns, p && p.turns)),
+      kpi("Tokens", tokens(t.total_tokens), `${fmt.int(t.model_calls)} model calls`, delta(t.total_tokens, p && p.total_tokens)),
+      kpi("Reused from cache", share(t.cache_read_tokens, t.prompt_tokens), "of input tokens", delta(rate(t.cache_read_tokens, t.prompt_tokens), p && rate(p.cache_read_tokens, p.prompt_tokens), false)),
+      kpi("Tool calls", fmt.int(t.tool_calls), t.turns ? `${(t.tool_calls / t.turns).toFixed(1)} a turn` : null, delta(t.tool_calls, p && p.tool_calls)),
+      kpi("Tool failures", share(t.tool_failures, t.tool_calls), `${fmt.int(t.tool_failures)} failed`, delta(rate(t.tool_failures, t.tool_calls), p && rate(p.tool_failures, p.tool_calls), true)),
+      kpi("Turns cut short", share(t.unfinished_turns, t.turns), `${fmt.int(t.unfinished_turns)} of ${fmt.int(t.turns)}`, delta(rate(t.unfinished_turns, t.turns), p && rate(p.unfinished_turns, p.turns), true))),
+    h("p", { class: "small muted tr-foot tr-compare" }, p ? `Arrows compare with the ${fmt.int(Math.round((s.to_ms - s.from_ms) / 86400000))} days before this range (${plural(p.turns, "turn")} then).` : "No activity in the period just before this range to compare with."),
     h("div", { class: "tr-grid2" },
       h("section", { class: "card", "aria-label": "Daily report" }, h("header", { class: "card-head" }, h("h2", { class: "card-title" }, "Daily report"), daySel), reportBox),
       h("section", { class: "card", "aria-label": "Activity by day" }, h("header", { class: "card-head" }, h("h2", { class: "card-title" }, "Activity by day")),

@@ -249,6 +249,18 @@ test("runHook sends one trace per turn, reading token counts from the transcript
     const total = spans.filter((s) => s.name === "model response").reduce((n, s) => n + attrs(s)["llm.token_count.total"], 0);
     assert.equal(total, 107 + 42);
     assert.equal(attrs(spans.find((s) => s.name === "Edit"))["input.value"], undefined, "tool input is off by default");
+    // Importing the same session afterwards gives the same ids, so the server keeps one copy of the turn.
+    const { claudeTurns } = await import("../public/trace/geo-trace.mjs");
+    const fileLine = (o) => JSON.stringify({ sessionId: "sess/../x", cwd: "/Users/ada/work/shop", ...o });
+    const imported = claudeTurns([
+      fileLine({ type: "user", promptId: "p1", timestamp: new Date(1000).toISOString(), message: { role: "user", content: "Rename the function" } }),
+      fileLine({ type: "assistant", timestamp: new Date(1200).toISOString(), message: { id: "m1", model: "claude-opus-5-5", usage: { input_tokens: 10, cache_read_input_tokens: 90, output_tokens: 7 }, content: [{ type: "tool_use", id: "tu1", name: "Edit", input: {} }] } }),
+      fileLine({ type: "user", promptId: "p1", timestamp: new Date(1500).toISOString(), message: { role: "user", content: [{ type: "tool_result", tool_use_id: "tu1", content: "ok" }] } }),
+      fileLine({ type: "assistant", timestamp: new Date(1900).toISOString(), message: { id: "m2", model: "claude-opus-5-5", usage: { input_tokens: 12, output_tokens: 30 }, content: [{ type: "text", text: "Renamed." }] } }),
+    ].join("\n"), cfgDefault)[0];
+    const again = toOtlp(buildTurn("claude", cfgDefault, imported.events, { ...imported.extra, seed: `claude:${imported.sid}:${imported.key}` })).resourceSpans[0].scopeSpans[0].spans;
+    const ids = (list) => list.map((s) => `${s.name}:${s.traceId}:${s.spanId}`).sort();
+    assert.deepEqual(ids(again), ids(spans), "live and imported copies of a turn share every id");
     // The session id is used in a file name; it cannot leave the state folder.
     assert.deepEqual(readdirSync(home).sort(), ["config.json", "state", "transcript.jsonl"]);
     assert.deepEqual(readdirSync(join(home, "state")), []);

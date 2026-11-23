@@ -83,7 +83,7 @@ node ~/.geo-observability/geo-trace.mjs import --dry-run    # count what would b
 
 Traces are kept for 92 days, so importing further back than that only brings in turns that are deleted again within the hour.
 
-It uses the same content switches as the installer. Running it again is safe: a turn that was already sent isn't added twice, and a turn that was still running picks up its later steps. Turns sent live by the hooks and the same turns imported afterwards are separate copies, so import history first, or only for the time before you connected.
+It uses the same content switches as the installer. Running it again is safe: a turn that was already sent isn't added twice, and a turn that was still running picks up its later steps. A turn sent live by the hooks and imported later is stored once.
 
 ## Check, pause, remove
 
@@ -114,9 +114,15 @@ An administrator can set the hooks for every machine, so nobody has to run the i
 
 Open **Traces** and choose the **People** tab: one row per person with their tools, sessions, turns and tokens for the date range. Select a person to open their page.
 
+People here means people using coding tools. Users of your own LLM apps are your customers, so they're left out unless you pick that app in the app filter.
+
+### Across the team
+
+Below the list, **Across the team** shows how many people use skills, subagents, plugins, MCP servers and slash commands, every one of those in use with who uses it, and what stands out: something only one person uses, a tool that fails for several people, something everyone relies on. It's the quickest way to find a habit worth sharing.
+
 ### A person's page
 
-- **Headline numbers**: turns, tokens, how much input was reused from cache, tool calls, tool failures, and turns that were cut short.
+- **Headline numbers**: turns, tokens, how much input was reused from cache, tool calls, tool failures, and turns that were cut short. Arrows show the change from the period of the same length just before.
 - **Tools**: every tool they used, how often, how often it failed and how long it took on average.
 - **Skills, plugins, MCP servers, subagents, slash commands, shell programs**: what they reach for, and what they never use.
 - **Models and projects**: where the tokens went.

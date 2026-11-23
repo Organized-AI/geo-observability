@@ -1,8 +1,9 @@
 /**
  * Writing decoded spans for one workspace.
  *
- * Spans are inserted once (a resend is ignored), then every trace touched by the request has its summary row
- * recomputed from the spans now stored. Because the summary is always derived from stored spans, the order
+ * A span is stored once. Sending it again changes nothing, unless the new copy ends later: a span sent while its
+ * work was still running (a turn imported mid-way) is then replaced by the finished one. Every trace touched by the
+ * request has its summary row recomputed from the spans now stored. Because the summary is always derived from stored spans, the order
  * spans arrive in and how often they are resent cannot change the totals.
  */
 import type { Env } from "../env";
@@ -69,11 +70,18 @@ export function fitAttributes(attrs: Attrs): { json: string; truncated: boolean 
   return { json, truncated: true };
 }
 
-const INSERT_SPAN = `INSERT OR IGNORE INTO llm_spans
+const INSERT_SPAN = `INSERT INTO llm_spans
   (tenant_id, app_id, trace_id, span_id, parent_span_id, name, kind, status_code, status_message, start_ms, end_ms,
    model, provider, prompt_tokens, completion_tokens, total_tokens, cost_micros, session_id, user_id,
    input_text, output_text, attributes, events, truncated)
-  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)`;
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)
+  ON CONFLICT (tenant_id, trace_id, span_id) DO UPDATE SET
+    parent_span_id = excluded.parent_span_id, name = excluded.name, kind = excluded.kind, status_code = excluded.status_code,
+    status_message = excluded.status_message, start_ms = excluded.start_ms, end_ms = excluded.end_ms, model = excluded.model, provider = excluded.provider,
+    prompt_tokens = excluded.prompt_tokens, completion_tokens = excluded.completion_tokens, total_tokens = excluded.total_tokens, cost_micros = excluded.cost_micros,
+    session_id = excluded.session_id, user_id = excluded.user_id, input_text = excluded.input_text, output_text = excluded.output_text,
+    attributes = excluded.attributes, events = excluded.events, truncated = excluded.truncated
+  WHERE excluded.end_ms > llm_spans.end_ms`;
 
 /**
  * Token and cost totals count model-calling spans only, so a parent span that repeats its children's usage
@@ -199,6 +207,9 @@ export async function ingestSpans(env: Env, tenantId: string, spans: OtlpSpan[],
       ),
     );
   }
+  // An app whose spans say which coding tool sent them is a coding tool; its people are counted as people.
+  const coding = new Set(good.filter((s) => typeof s.attributes["harness.name"] === "string").map((s) => appIds.get(appNameFor(s, headerApp)) as string));
+  if (coding.size) stmts.push(...[...coding].map((id) => tdb.prepare("UPDATE trace_apps SET kind = 'coding_tool' WHERE tenant_id = ?1 AND id = ?2 AND kind <> 'coding_tool'", id)));
   for (const part of chunk(stmts, 40)) await tdb.batch(part);
   for (const part of chunk([...traceIds], 40)) await tdb.batch(part.map((id) => tdb.prepare(SUMMARISE, id)));
   const seen = nowIso();

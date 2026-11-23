@@ -467,6 +467,17 @@ mark.mark-own { background: var(--mark-own); color: inherit; border-radius: 4px;
 .tr-days { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .tr-days li { display: grid; grid-template-columns: 58px minmax(40px, 1fr) auto; gap: 10px; align-items: center; }
 .tr-days .tr-bar { background: var(--series-2); }
+.tr-delta { margin-left: 8px; font: 600 12px var(--font-body); color: var(--text-3); white-space: nowrap; vertical-align: middle; }
+.tr-delta-good { color: var(--pos); }
+.tr-delta-bad { color: var(--neg); }
+.tr-compare { margin: -6px 0 16px; }
+.tr-section { font-size: 20px; margin: 28px 0 12px; }
+.tr-adopt { margin: 0 0 16px; display: grid; gap: 10px; }
+.tr-adopt > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline; font-size: 13.5px; }
+.tr-adopt dt { color: var(--text-2); }
+.tr-adopt dd { margin: 0; }
+.tr-adopt .tr-track { grid-column: 1 / -1; }
+.tr-adopt .tr-bar { background: var(--series-3); }
 .chat-meta.wrap { flex-wrap: wrap; }
 .tr-kpis { margin-bottom: 16px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .tr-kpis .kpi-value { font-size: 22px; }
