@@ -8,6 +8,7 @@ import { LIMITS } from "../tracing/store";
 import { MAX_BODY_BYTES } from "../tracing/otlp";
 import { peopleCsv, tracesCsv, tracesJsonl } from "../tracing/export";
 import { retentionDays, retentionStatus } from "../tracing/retention";
+import { getReport, listReports, personSummary } from "../tracing/people";
 import type { AppEnv } from "./portal";
 
 export const tracingApi = new Hono<AppEnv>();
@@ -78,6 +79,23 @@ tracingApi.get("/people", async (c) => {
   const f = filtersFrom(new URL(c.req.url).searchParams);
   const rows = await listPeople(c.get("session").tdb, { appId: f.appId, fromMs: f.fromMs, toMs: f.toMs, limit: f.limit });
   return c.json(rows.map((r) => ({ ...r, apps: String(r.apps ?? "").split(",").filter(Boolean).sort() })));
+});
+
+/** One person in detail: tools, skills, plugins, subagents, models, projects, sessions, by day. */
+tracingApi.get("/people/:user", async (c) => {
+  const f = filtersFrom(new URL(c.req.url).searchParams);
+  const now = Date.now();
+  const s = await personSummary(c.get("session").tdb, c.req.param("user").slice(0, 200), f.fromMs ?? now - 30 * 86_400_000, f.toMs ?? now);
+  if (!s.totals.turns) throw new HttpError(404, "not_found", "No traces from this person in this range");
+  return c.json(s);
+});
+
+tracingApi.get("/people/:user/reports", async (c) => c.json(await listReports(c.get("session").tdb, c.req.param("user").slice(0, 200), 60)));
+
+tracingApi.get("/people/:user/reports/:day", async (c) => {
+  const r = await getReport(c.get("session").tdb, c.req.param("user").slice(0, 200), c.req.param("day"));
+  if (!r) throw new HttpError(404, "not_found", "No activity from this person on that day");
+  return c.json(r);
 });
 
 /** Where to send traces and what the limits are. Keys are made under Usage & API; none is returned here. */

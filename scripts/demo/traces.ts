@@ -142,7 +142,24 @@ const CODING: [string, string[], string][] = [
 
 /** One turn of a coding tool, in the shape the geo-trace hook script sends. */
 function codingTurn(r: () => number, t0: number, tool: "claude-code" | "codex", user: string, session: string): DemoSpan[] {
-  const [prompt, tools, answer] = CODING[Math.floor(r() * CODING.length)]!;
+  const [prompt, baseTools, answer] = CODING[Math.floor(r() * CODING.length)]!;
+  // Some turns also use a skill, a subagent or a tool from an MCP server or plugin, as real sessions do.
+  const tools = [...baseTools];
+  const style = Math.floor(r() * 100) + user.charCodeAt(0) * 7;
+  if (tool === "claude-code" && style % 3 === 0) tools.splice(1, 0, "Skill");
+  if (tool === "claude-code" && style % 4 === 0) tools.splice(1, 0, "Agent");
+  if (style % 5 === 0) tools.push(tool === "codex" ? "mcp__linear__get_issue" : "mcp__plugin_github_github__create_pull_request");
+  if (style % 11 === 0) tools.push("mcp__sentry__search_issues");
+  const facts = (name: string): Attrs => {
+    if (name === "Bash") return { "tool.kind": "shell", "command.program": ["git", "npm", "pytest", "rg", "docker"][Math.floor(r() * 5)]! };
+    if (name === "Skill") { const s = ["code-review", "release-notes", "stripe:test-cards", "simplify"][Math.floor(r() * 4)]!; return { "tool.kind": "skill", "skill.name": s, ...(s.includes(":") ? { "plugin.name": s.split(":")[0]! } : {}) }; }
+    if (name === "Agent") return { "tool.kind": "subagent", "subagent.type": ["Explore", "general-purpose", "Plan"][Math.floor(r() * 3)]! };
+    const m = /^mcp__(?:plugin_([a-z]+)_)?([a-z]+)__/.exec(name);
+    if (m) return { "tool.kind": "mcp", "mcp.server": m[2]!, ...(m[1] ? { "plugin.name": m[1] } : {}) };
+    return { "tool.kind": "builtin" };
+  };
+  const slash = style % 6 === 0 ? ["review", "commit", "simplify"][style % 3]! : null;
+  const cutShort = style % 17 === 0;
   const model = tool === "codex" ? "gpt-5-codex" : r() < 0.6 ? "claude-sonnet-5-5" : "claude-opus-5-5";
   const provider = tool === "codex" ? "openai" : "anthropic";
   const common: Attrs = { "session.id": `${tool}:${session}`, "user.id": user, "harness.name": tool };
@@ -159,7 +176,7 @@ function codingTurn(r: () => number, t0: number, tool: "claude-code" | "codex", 
       attrs: { "openinference.span.kind": "LLM", "llm.provider": provider, "llm.model_name": model, "llm.token_count.prompt": cached + fresh, "llm.token_count.completion": out, "llm.token_count.total": cached + fresh + out, "llm.token_count.prompt_details.cache_read": cached, "llm.output_messages.0.message.role": "assistant", "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": name, ...common } });
     at += think + 20;
     const run = name === "Bash" ? 400 + Math.floor(r() * 4000) : 30 + Math.floor(r() * 250);
-    spans.push({ id: hex(r, 16), parent: rootId, name, start: at, end: at + run, attrs: { "openinference.span.kind": "TOOL", "tool.name": name, ...common }, ...(i === failAt ? { error: "The tool call failed." } : {}) });
+    spans.push({ id: hex(r, 16), parent: rootId, name, start: at, end: at + run, attrs: { "openinference.span.kind": "TOOL", "tool.name": name, ...facts(name), ...common }, ...(i === failAt ? { error: "The tool call failed." } : {}) });
     at += run + 20;
   });
   const last = 1200 + Math.floor(r() * 3000);
@@ -168,7 +185,7 @@ function codingTurn(r: () => number, t0: number, tool: "claude-code" | "codex", 
     attrs: { "openinference.span.kind": "LLM", "llm.provider": provider, "llm.model_name": model, "llm.token_count.prompt": cached + 900, "llm.token_count.completion": 240, "llm.token_count.total": cached + 1140, "llm.token_count.prompt_details.cache_read": cached, "output.value": answer, ...common } });
   at += last + 30;
   spans.unshift({ id: rootId, parent: null, name: "turn", start: t0, end: at,
-    attrs: { "openinference.span.kind": "AGENT", "agent.name": tool, ...common, "project.name": "desk-api", "input.value": prompt, "output.value": answer } });
+    attrs: { "openinference.span.kind": "AGENT", "agent.name": tool, ...common, "project.name": ["desk-api", "desk-web", "billing-jobs"][user.charCodeAt(0) % 3]!, "input.value": slash ? `/${slash} ${prompt}` : prompt, ...(slash ? { "slash.command": slash } : {}), ...(cutShort ? { "turn.incomplete": true } : { "output.value": answer }) } });
   return spans;
 }
 

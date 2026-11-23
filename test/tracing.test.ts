@@ -4,6 +4,7 @@ import type { Env } from "../src/env";
 import { fitAttributes, LIMITS } from "../src/tracing/store";
 import { TenantDB } from "../src/lib/db";
 import { pruneTenant, pruneTraces, retentionDays } from "../src/tracing/retention";
+import { generateDailyReports, generateTenantReports, observe, toolKind, type PersonSummary } from "../src/tracing/people";
 import { b64ToBytes, OTLP_JSON, OTLP_PROTOBUF_B64, OTLP_PROTOBUF_GZIP_B64 } from "./fixtures/otlp";
 
 const env = rawEnv as unknown as Env;
@@ -402,6 +403,102 @@ describe("tracing API", () => {
     expect(await spanCount(tenantA)).toBe(before.a - 7);
     expect((await get(`/traces/${hex(0xf003, 32)}`)).status).toBe(200);
     expect((await get("/apps")).json.find((x: any) => x.name === "paging-app").trace_count).toBe(25);
+  });
+
+  it("breaks one person's usage down by tool, skill, plugin, subagent, program and model", async () => {
+    const DAY = 86_400_000;
+    const who = { "user.id": "dev@acme.test", "harness.name": "claude-code" };
+    const tool = (trace: number, span: number, name: string, start: number, attrs: Record<string, string | number> = {}, error?: string): SpanSpec => ({ trace, span, parent: 1, name, start, dur: 200, attrs: { "openinference.span.kind": "TOOL", "tool.name": name, ...who, ...attrs }, ...(error ? { error } : {}) });
+    const specs: SpanSpec[] = [
+      // Today, turn 1: a review with a skill, a plugin's MCP tool, a subagent and five shell calls (two failing).
+      { trace: 0x9001, span: 1, name: "turn", start: 3_600_000, dur: 60_000, attrs: { "openinference.span.kind": "AGENT", "session.id": "claude-code:s1", "project.name": "shop", "slash.command": "review", "input.value": "/review the checkout", ...who } },
+      { trace: 0x9001, span: 2, parent: 1, name: "model response", start: 3_600_100, dur: 900, attrs: { "openinference.span.kind": "LLM", "llm.model_name": "claude-opus-5-5", "llm.token_count.prompt": 300_000, "llm.token_count.completion": 100, "llm.token_count.total": 300_100, "llm.token_count.prompt_details.cache_read": 100_000, ...who } },
+      tool(0x9001, 3, "Skill", 3_601_000, { "tool.kind": "skill", "skill.name": "stripe:test-cards", "plugin.name": "stripe" }),
+      tool(0x9001, 4, "mcp__plugin_browser-use_browser-use__browser_exec", 3_602_000, { "tool.kind": "mcp", "mcp.server": "browser-use", "plugin.name": "browser-use" }),
+      tool(0x9001, 5, "Agent", 3_603_000, { "tool.kind": "subagent", "subagent.type": "Explore" }),
+      tool(0x9001, 6, "Read", 3_604_000),
+      tool(0x9001, 7, "Bash", 3_605_000, { "command.program": "git" }),
+      tool(0x9001, 8, "Bash", 3_606_000, { "command.program": "git" }, "The tool call failed."),
+      tool(0x9001, 9, "Bash", 3_607_000, { "command.program": "npm" }, "The tool call failed."),
+      tool(0x9001, 10, "Bash", 3_608_000, { "command.program": "git" }),
+      tool(0x9001, 11, "Bash", 3_609_000, { "command.program": "git" }),
+      // Today, turns 2 and 3: cut short.
+      { trace: 0x9002, span: 1, name: "turn", start: 4_000_000, dur: 5000, attrs: { "openinference.span.kind": "AGENT", "session.id": "claude-code:s1", "project.name": "shop", "turn.incomplete": 1, ...who } },
+      { trace: 0x9003, span: 1, name: "turn", start: 5_000_000, dur: 5000, attrs: { "openinference.span.kind": "AGENT", "session.id": "claude-code:s2", "project.name": "docs", "turn.incomplete": 1, ...who } },
+    ];
+    // Two days earlier: ten plain turns, the person's "usual".
+    for (let i = 0; i < 10; i++) specs.push({ trace: 0x9100 + i, span: 1, name: "turn", start: -2 * DAY + i * 60_000, dur: 1000, attrs: { "openinference.span.kind": "AGENT", "session.id": "claude-code:s0", ...who } });
+    expect((await sendJson(keyA, otlpJson(specs, { "service.name": "claude-code" }))).status).toBe(200);
+
+    const user = encodeURIComponent("dev@acme.test");
+    const s = await get<PersonSummary>(`/people/${user}?from=2026-11-20&to=2026-11-20`);
+    expect(s.status).toBe(200);
+    expect(s.json.totals).toMatchObject({
+      turns: 3, sessions: 2, active_days: 1, failed_turns: 1, unfinished_turns: 2, model_calls: 1, prompt_tokens: 300_000, completion_tokens: 100, total_tokens: 300_100,
+      cache_read_tokens: 100_000, largest_prompt_tokens: 300_000, max_model_calls_in_turn: 1, tool_calls: 9, tool_failures: 2, longest_turn_ms: 60_000,
+    });
+    expect(s.json.days).toEqual([{ day: "2026-11-20", turns: 3, tokens: 300_100, tool_calls: 9 }]);
+    expect(s.json.tools.map((x) => [x.name, x.kind, x.calls, x.failures, x.avg_ms])).toEqual([
+      ["Bash", "shell", 5, 2, 200], ["Agent", "subagent", 1, 0, 200], ["mcp__plugin_browser-use_browser-use__browser_exec", "mcp", 1, 0, 200], ["Read", "builtin", 1, 0, 200], ["Skill", "skill", 1, 0, 200],
+    ]);
+    expect(s.json.skills).toEqual([{ name: "stripe:test-cards", calls: 1, failures: 0 }]);
+    expect(s.json.plugins.map((x) => [x.name, x.calls])).toEqual([["browser-use", 1], ["stripe", 1]]);
+    expect(s.json.mcp_servers.map((x) => [x.name, x.calls])).toEqual([["browser-use", 1]]);
+    expect(s.json.subagents.map((x) => [x.name, x.calls])).toEqual([["Explore", 1]]);
+    expect(s.json.programs.map((x) => [x.name, x.calls, x.failures])).toEqual([["git", 4, 1], ["npm", 1, 1]]);
+    expect(s.json.commands.map((x) => [x.name, x.calls])).toEqual([["review", 1]]);
+    expect(s.json.models).toEqual([{ name: "claude-opus-5-5", calls: 1, tokens: 300_100 }]);
+    expect(s.json.projects.map((x) => [x.name, x.calls])).toEqual([["shop", 2], ["docs", 1]]);
+    expect(s.json.apps).toEqual([{ name: "claude-code", calls: 3, tokens: 300_100 }]);
+    expect(s.json.sessions.map((x) => [x.session_id, x.turns])).toEqual([["claude-code:s2", 1], ["claude-code:s1", 2]]);
+    // A wider range brings in the earlier day; another workspace sees nobody by that name.
+    expect((await get<PersonSummary>(`/people/${user}?from=2026-11-10&to=2026-11-20`)).json.totals).toMatchObject({ turns: 13, active_days: 2 });
+    expect((await get(`/people/${user}?from=2026-11-20&to=2026-11-20`, "trace-b")).status).toBe(404);
+    expect((await get("/people/nobody?from=2026-11-20&to=2026-11-20")).status).toBe(404);
+    expect(toolKind("mcp__claude_ai_Slack__slack_send_message")).toEqual({ kind: "mcp", server: "claude_ai_Slack" });
+  });
+
+  it("writes a daily report per person with observations drawn from the numbers", async () => {
+    const user = encodeURIComponent("dev@acme.test");
+    // Not written yet: built on the spot for the day asked.
+    const live = await get(`/people/${user}/reports/2026-11-20`);
+    expect(live.status).toBe(200);
+    expect(live.json).toMatchObject({ user_id: "dev@acme.test", day: "2026-11-20", stored: false, usual: { active_days: 1, turns_per_day: 10 } });
+    expect(live.json.observations.map((o: any) => [o.level, o.title])).toEqual([
+      ["watch", "Bash failed 2 of 5 times"],
+      ["watch", "2 turns of 3 were cut short"],
+      ["watch", "One model call carried 300,000 tokens of context"],
+      ["tip", "33% of input was reused from cache"],
+      ["tip", "Quieter than usual: 3 turns against about 10 a day"],
+      ["good", "Used 1 skill"],
+      ["good", "Delegated to 1 subagent"],
+    ]);
+    expect(live.json.top_tools[0]).toMatchObject({ name: "Bash", calls: 5, failures: 2 });
+    expect((await get(`/people/${user}/reports`)).json).toEqual([]);
+    expect((await get(`/people/${user}/reports/2026-11-19`)).status).toBe(404);
+    expect((await get(`/people/${user}/reports/not-a-day`)).status).toBe(404);
+
+    // The scheduled job, run on the 21st, writes the 20th for everyone active that day in every workspace.
+    const written = await generateDailyReports(env, new Date(Date.UTC(2026, 10, 21, 1, 0, 0)));
+    expect(written).toBeGreaterThanOrEqual(2); // dev@acme.test and u1 (the paging traces) at least
+    const stored = await get(`/people/${user}/reports`);
+    expect(stored.json.map((r: any) => r.day)).toEqual(["2026-11-20"]);
+    expect(stored.json[0].observations).toHaveLength(7);
+    expect((await get(`/people/${user}/reports/2026-11-20`)).json.stored).toBe(true);
+    // Running it again rewrites the same row; an earlier day can be written on request.
+    const rowsFor20th = async () => (await env.DB.prepare("SELECT COUNT(*) AS n FROM trace_reports WHERE tenant_id = ?1 AND day = '2026-11-20'").bind(tenantA).first<{ n: number }>())!.n;
+    const before = await rowsFor20th();
+    expect(await generateTenantReports(new TenantDB(env.DB, tenantA), "2026-11-20")).toBe(before);
+    expect(await rowsFor20th()).toBe(before);
+    expect(await generateTenantReports(new TenantDB(env.DB, tenantA), "2026-11-18")).toBe(1);
+    expect((await get(`/people/${user}/reports`)).json.map((r: any) => [r.day, r.totals.turns, r.observations.length])).toEqual([["2026-11-20", 3, 7], ["2026-11-18", 10, 1]]);
+    expect((await get(`/people/${user}/reports`, "trace-b")).json).toEqual([]);
+
+    // A quiet, clean day earns no warnings.
+    const clean = { totals: { turns: 4, tool_calls: 12, tool_failures: 0, unfinished_turns: 0, largest_prompt_tokens: 20_000, max_model_calls_in_turn: 5, prompt_tokens: 300_000, cache_read_tokens: 280_000 }, tools: [{ name: "Read", kind: "builtin", calls: 12, failures: 0 }], skills: [], subagents: [], programs: [] } as unknown as PersonSummary;
+    const none = { totals: { turns: 0, active_days: 0 } } as unknown as PersonSummary;
+    expect(observe(clean, none).map((o) => [o.level, o.title])).toEqual([["good", "12 tool calls and none failed"], ["good", "93% of input was reused from cache"]]);
+    expect(observe(none, none)).toEqual([]);
   });
 
   it("says where to send traces", async () => {

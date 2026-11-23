@@ -11,10 +11,12 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - A **Traces** page in the portal: runs by app with error, search and date filters, conversations grouped by session, and a trace page with the span tree, a timeline and the detail of each step. The demo workspace has sample traces.
 - Claude Code and Codex as trace sources: `geo-trace.mjs` (served at `/trace/geo-trace.mjs`) connects a person's machine with one command and sends each turn as a trace with its model calls, token counts and tool calls. Prompts and answers are sent by default and can be switched off; tool inputs and outputs are off unless switched on. It works with subscription logins and can be rolled out through managed settings. `import` sends the sessions already on a machine.
 - A **People** tab under Traces: tools, sessions, turns and tokens per person, with a filter from a person to their traces.
+- A page per person: tools with failure rates and timing, skills, plugins, MCP servers, subagents, slash commands, shell programs, models, projects and sessions. The geo-trace script now sends these names with every tool call (never the inputs).
+- Daily reports per person, written after each day: the day's numbers against their own previous week, with observations labelled Watch, Try or Good. Rules only; nothing reads what was typed.
 - Quarterly retention: traces are deleted 92 days after they start (hourly job; `TRACE_RETENTION_DAYS` changes the window). The Traces page says when traces are within 14 days of deletion.
 - Export from the Traces page, using the filters on screen: traces as CSV, full traces with every step as JSON Lines, and people as CSV.
 - `/api/tracing` for the portal (apps, traces, spans, sessions, people, setup) and three user guide pages under Integrations.
-- Migrations `0006_llm_tracing.sql` (`trace_apps`, `llm_spans`, `llm_traces`) `0007_trace_people.sql` and `0008_trace_retention.sql` (indexes). Apply them before deploying.
+- Migrations `0006_llm_tracing.sql` (`trace_apps`, `llm_spans`, `llm_traces`) `0007_trace_people.sql` and `0008_trace_retention.sql` (indexes) and `0009_trace_person_reports.sql` (`trace_reports`). Apply them before deploying.
 
 ## [1.4.1] - 2026-11-14
 

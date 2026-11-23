@@ -447,6 +447,26 @@ mark.mark-own { background: var(--mark-own); color: inherit; border-radius: 4px;
 .tr-usage-cell { display: grid; gap: 6px; }
 .tr-usage-cell .tr-bar { background: var(--series-2); }
 .tr-foot { margin-top: 12px; }
+.tr-kpis.tr-kpis-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.tr-grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-bottom: 16px; }
+.tr-stack { display: grid; gap: 16px; min-width: 0; }
+.tr-none { padding: 4px 18px 16px; }
+.tr-cellname { overflow-wrap: anywhere; font-weight: 500; }
+.tr-fail { color: var(--neg); }
+.tr-report { display: grid; gap: 14px; }
+.tr-report-lead { font-size: 15px; }
+.tr-obs { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.tr-obs li { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.tr-obs li .badge { justify-self: start; margin-top: 2px; }
+.tr-obs-watch { border-left: 3px solid var(--neg) !important; }
+.tr-obs-title { font-weight: 600; font-size: 14.5px; }
+.tr-report-facts { margin: 0; display: grid; gap: 6px; font-size: 13.5px; }
+.tr-report-facts > div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; }
+.tr-report-facts dt { color: var(--text-3); font-weight: 600; font-size: 12.5px; }
+.tr-report-facts dd { margin: 0; overflow-wrap: anywhere; }
+.tr-days { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.tr-days li { display: grid; grid-template-columns: 58px minmax(40px, 1fr) auto; gap: 10px; align-items: center; }
+.tr-days .tr-bar { background: var(--series-2); }
 .chat-meta.wrap { flex-wrap: wrap; }
 .tr-kpis { margin-bottom: 16px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .tr-kpis .kpi-value { font-size: 22px; }
@@ -514,6 +534,8 @@ mark.mark-own { background: var(--mark-own); color: inherit; border-radius: 4px;
   .tr-tree { max-height: 46vh; }
   .tr-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .tr-kpis.tr-kpis-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .tr-kpis.tr-kpis-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tr-grid2 { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
   .tbl .hide-sm { display: none; }
@@ -523,6 +545,10 @@ mark.mark-own { background: var(--mark-own); color: inherit; border-radius: 4px;
   .tbl td, .tbl th { padding-left: 10px; padding-right: 10px; }
   .tr-kpis .kpi:last-child { grid-column: 1 / -1; }
   .tr-kpis.tr-kpis-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tr-kpis.tr-kpis-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tr-kpis.tr-kpis-6 .kpi:last-child { grid-column: auto; }
+  .tr-report-facts > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .tr-obs li { grid-template-columns: minmax(0, 1fr); }
   .tr-kpis.tr-kpis-4 .kpi:last-child { grid-column: auto; }
   .tr-usage { min-width: 110px; }
   .tr-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }

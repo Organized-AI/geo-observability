@@ -14,7 +14,7 @@ export function generate(days = 30, endDay = new Date().toISOString().slice(0, 1
   const T = "ten_demo";
   const P = "prj_demo";
   const out: string[] = ["PRAGMA foreign_keys = OFF;"];
-  for (const t of ["llm_spans", "llm_traces", "trace_apps", "mentions", "citations", "fanout_queries", "claims", "runs", "daily_brand_metrics", "crawl_daily", "referral_daily", "conversion_daily", "insights", "actions", "prompts", "topics", "brands", "project_models", "project_countries", "brand_profiles", "projects", "domain_classes", "usage_events"]) {
+  for (const t of ["trace_reports", "llm_spans", "llm_traces", "trace_apps", "mentions", "citations", "fanout_queries", "claims", "runs", "daily_brand_metrics", "crawl_daily", "referral_daily", "conversion_daily", "insights", "actions", "prompts", "topics", "brands", "project_models", "project_countries", "brand_profiles", "projects", "domain_classes", "usage_events"]) {
     out.push(`DELETE FROM ${t} WHERE tenant_id = '${T}';`);
   }
   out.push(`DELETE FROM tenants WHERE id = '${T}';`);

@@ -49,6 +49,18 @@ One trace per turn (one prompt and everything the assistant did to answer it):
 | Each tool call | Tool name, how long it took, whether it failed |
 | Each subagent | Its type, with its own model and tool calls underneath |
 
+Names that say what was used are always sent, because they are what makes usage readable:
+
+| Name | Example |
+| --- | --- |
+| Tool | `Read`, `Bash`, `Edit` |
+| Skill | `code-review` |
+| Plugin | `stripe` |
+| MCP server | `linear` |
+| Subagent type | `Explore` |
+| Program a shell command starts with | `git`, `npm` (never its arguments) |
+| Slash command | `review` (never what follows it) |
+
 And, depending on the switches below:
 
 | Content | Default | Switch |
@@ -100,9 +112,33 @@ An administrator can set the hooks for every machine, so nobody has to run the i
 
 ## Reading the results
 
-Open **Traces** and choose the **People** tab: one row per person with their tools, sessions, turns and tokens for the date range. Select a person to see their turns, and a turn to see each step.
+Open **Traces** and choose the **People** tab: one row per person with their tools, sessions, turns and tokens for the date range. Select a person to open their page.
+
+### A person's page
+
+- **Headline numbers**: turns, tokens, how much input was reused from cache, tool calls, tool failures, and turns that were cut short.
+- **Tools**: every tool they used, how often, how often it failed and how long it took on average.
+- **Skills, plugins, MCP servers, subagents, slash commands, shell programs**: what they reach for, and what they never use.
+- **Models and projects**: where the tokens went.
+- **Recent sessions**: open one to read its turns.
 
 Tokens include cached input, which is most of a coding session, so the numbers are large. Cost isn't shown: a subscription seat has no price per request.
+
+### Daily reports
+
+Each person gets a report for every day they were active. It's written after the day ends (UTC), and rewritten each hour that day if late turns arrive. Today's report is shown as a preview.
+
+A report has the day's numbers, how they compare with that person's own active days in the week before, and a short list of observations:
+
+| Label | Meaning | Examples |
+| --- | --- | --- |
+| Watch | Something cost time | A tool failing a quarter of the time; turns cut short; a very large context |
+| Try | Something worth trying | No skills or subagents used; a very long single turn; a program approved by hand many times |
+| Good | Something worth keeping | No tool failures; skills and subagents in use; high cache reuse |
+
+Every observation comes from a number on the page, by fixed rules. Nothing is judged by a model, and nothing reads what was typed. The reports describe how the tools were used. They don't measure the quality of anyone's work, and they're a poor basis for comparing people: someone doing harder work will show more failures and longer turns.
+
+Reports are kept after the traces they were built from are deleted, since they hold counts and names only.
 
 ## Limits
 

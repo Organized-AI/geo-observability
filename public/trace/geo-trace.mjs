@@ -57,6 +57,58 @@ const cut = (v, max) => {
 const randomHex = (bytes) => randomBytes(bytes).toString("hex");
 const hex = randomHex;
 
+// ------------------------------------------------------------------ what a tool call was (names only)
+
+const nameOnly = (v, max = 80) => (typeof v === "string" && /^[A-Za-z0-9 ._:@/-]{1,200}$/.test(v.trim()) ? v.trim().slice(0, max) : undefined);
+
+/** The program a shell command starts with ("git", "npm"), never its arguments. */
+export function programOf(command) {
+  let c = Array.isArray(command) ? command[command.length - 1] : command;
+  if (typeof c !== "string") return undefined;
+  // Skip leading "cd x &&", environment assignments and sudo, which say nothing about what was run.
+  c = c.trim().replace(/^(?:cd\s+\S+\s*(?:&&|;)\s*)+/, "");
+  const words = c.split(/\s+/);
+  while (words.length && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0]) || words[0] === "sudo" || words[0] === "env" || words[0] === "time")) words.shift();
+  const first = (words[0] || "").split("/").pop();
+  return /^[A-Za-z0-9._+-]{1,40}$/.test(first) ? first : undefined;
+}
+
+/**
+ * Names that describe a tool call without its content: the skill, the subagent type, the MCP server and plugin a
+ * tool belongs to, the program a shell command runs. These are sent even when tool inputs are switched off,
+ * because they are what makes usage readable; arguments, paths and output are not included.
+ */
+export function toolFacts(tool, input) {
+  const f = {};
+  const name = String(tool || "");
+  let obj = input;
+  if (typeof obj === "string") { try { obj = JSON.parse(obj); } catch { obj = null; } }
+  if (!obj || typeof obj !== "object") obj = {};
+  const mcp = /^mcp__(.+?)__(.+)$/.exec(name);
+  if (mcp) {
+    f.kind = "mcp";
+    const plugin = /^plugin_([^_]+(?:-[^_]+)*)_(.+)$/.exec(mcp[1]);
+    f.server = plugin ? plugin[2] : mcp[1];
+    if (plugin) f.plugin = plugin[1];
+  } else if (name === "Skill") {
+    f.kind = "skill";
+    const skill = nameOnly(obj.skill ?? obj.name ?? obj.command);
+    if (skill) { f.skill = skill; if (skill.includes(":")) f.plugin = skill.split(":")[0]; }
+  } else if (name === "Agent" || name === "Task") {
+    f.kind = "subagent";
+    const type = nameOnly(obj.subagent_type ?? obj.agent_type);
+    f.subagent = type || "general-purpose";
+  } else if (/^(Bash|shell|local_shell|exec_command|shell_command)$/i.test(name)) {
+    f.kind = "shell";
+    const program = programOf(obj.command ?? obj.cmd ?? obj.script);
+    if (program) f.program = program;
+  } else f.kind = "builtin";
+  return f;
+}
+
+/** A prompt that starts with a slash command: the command's name, nothing after it. */
+export const slashCommand = (prompt) => { const m = /^\s*\/([A-Za-z0-9][A-Za-z0-9:._-]{0,60})(?:\s|$)/.exec(typeof prompt === "string" ? prompt : ""); return m ? m[1] : undefined; };
+
 // ------------------------------------------------------------------ capture (one hook event -> one stored line)
 
 /** The fields kept from a hook event. Content the config switches off never reaches the disk. */
@@ -67,6 +119,8 @@ export function slimEvent(harness, d, cfg, now = Date.now()) {
   for (const [from, to] of [["cwd", "cwd"], ["prompt_id", "pid"], ["turn_id", "pid"], ["transcript_path", "tp"], ["model", "model"], ["permission_mode", "pm"], ["agent_id", "aid"], ["agent_type", "atype"], ["tool_use_id", "tid"], ["tool_name", "tool"], ["request_id", "rid"]]) {
     if (typeof d[from] === "string" && d[from] && e[to] === undefined) e[to] = d[from];
   }
+  if (name === "UserPromptSubmit" && typeof d.prompt === "string") { const cmd = slashCommand(d.prompt); if (cmd) e.cmd = cmd; }
+  if (name === "PreToolUse") e.meta = toolFacts(d.tool_name, d.tool_input);
   if (name === "UserPromptSubmit" && cap.prompts && typeof d.prompt === "string") e.prompt = cut(d.prompt, LIMITS.prompt);
   if ((name === "Stop" || name === "SubagentStop") && cap.responses && typeof d.last_assistant_message === "string") e.answer = cut(d.last_assistant_message, LIMITS.answer);
   if (name === "SubagentStop" && typeof d.agent_transcript_path === "string") e.atp = d.agent_transcript_path;
@@ -179,6 +233,7 @@ export function buildTurn(harness, cfg, events, extra = {}) {
     id: rootId, parent: null, name: "turn", start: start.t, end: Math.max(stop ? stop.t : lastT, start.t), error: null,
     attrs: { "openinference.span.kind": "AGENT", "agent.name": h.service, ...common, ...(cwd ? { "project.name": basename(cwd) } : {}), ...(start.pid ? { "turn.id": start.pid } : {}), ...(start.pm ? { "permission.mode": start.pm } : {}), ...(model ? { "harness.model": model } : {}), ...(stop ? {} : { "turn.incomplete": true }) },
   };
+  if (start.cmd) root.attrs["slash.command"] = start.cmd;
   if (start.prompt !== undefined) root.attrs["input.value"] = start.prompt;
   if (stop && stop.answer !== undefined) root.attrs["output.value"] = stop.answer;
   spans.push(root);
@@ -200,6 +255,10 @@ export function buildTurn(harness, cfg, events, extra = {}) {
   }
   const parentOf = (e) => (e.aid && agents.has(e.aid) && e.e !== "SubagentStart" && e.e !== "SubagentStop" ? agents.get(e.aid).id : rootId);
 
+  const facts = (meta) => {
+    const m = meta || {};
+    return { ...(m.kind ? { "tool.kind": m.kind } : {}), ...(m.server ? { "mcp.server": m.server } : {}), ...(m.plugin ? { "plugin.name": m.plugin } : {}), ...(m.skill ? { "skill.name": m.skill } : {}), ...(m.subagent ? { "subagent.type": m.subagent } : {}), ...(m.program ? { "command.program": m.program } : {}) };
+  };
   // Tool calls: a Pre and a Post event share a tool_use_id.
   const pre = new Map();
   for (const e of events) if (e.e === "PreToolUse" && e.tid) pre.set(e.tid, e);
@@ -211,12 +270,12 @@ export function buildTurn(harness, cfg, events, extra = {}) {
     if (e.tid) done.add(e.tid);
     const s = p ? p.t : typeof e.dur === "number" ? e.t - e.dur : e.t;
     spans.push({ id: id(`tool:${e.tid || n++}`), parent: parentOf(e), name: e.tool || p?.tool || "tool", start: Math.min(s, e.t), end: e.t, error: e.e === "PostToolUseFailure" ? e.err || "The tool call failed." : null,
-      attrs: { "openinference.span.kind": "TOOL", "tool.name": e.tool || p?.tool || "tool", ...common, ...(p && p.input !== undefined ? { "input.value": p.input, "input.mime_type": "application/json" } : {}), ...(e.output !== undefined ? { "output.value": e.output } : {}) } });
+      attrs: { "openinference.span.kind": "TOOL", "tool.name": e.tool || p?.tool || "tool", ...facts(p?.meta || toolFacts(e.tool || p?.tool)), ...common, ...(p && p.input !== undefined ? { "input.value": p.input, "input.mime_type": "application/json" } : {}), ...(e.output !== undefined ? { "output.value": e.output } : {}) } });
   }
   for (const [tid, p] of pre) {
     if (done.has(tid)) continue; // started but never reported back: interrupted or denied
     spans.push({ id: id(`tool:${tid}`), parent: parentOf(p), name: p.tool || "tool", start: p.t, end: p.t, error: null,
-      attrs: { "openinference.span.kind": "TOOL", "tool.name": p.tool || "tool", "tool.unfinished": true, ...common, ...(p.input !== undefined ? { "input.value": p.input } : {}) } });
+      attrs: { "openinference.span.kind": "TOOL", "tool.name": p.tool || "tool", "tool.unfinished": true, ...facts(p.meta), ...common, ...(p.input !== undefined ? { "input.value": p.input } : {}) } });
   }
 
   // Model calls. Codex reports each request with its token counts; for Claude Code they come from the transcript.
@@ -421,7 +480,8 @@ export function claudeTurns(text, cfg) {
       const blocks = Array.isArray(m.content) ? m.content : [];
       const results = blocks.filter((b) => b && b.type === "tool_result");
       if (typeof d.promptId === "string" && (!cur || cur.pid !== d.promptId) && !results.length && !d.isMeta) {
-        cur = { pid: d.promptId, sid, events: [{ t, e: "UserPromptSubmit", sid, pid: d.promptId, cwd, ...(cap.prompts ? { prompt: cut(textOf(m.content), LIMITS.prompt) } : {}) }], calls: new Map(), tools: new Map(), last: t, answer: "" };
+        const cmd = slashCommand(textOf(m.content)) || (/<command-name>\/?([A-Za-z0-9][A-Za-z0-9:._-]{0,60})<\/command-name>/.exec(textOf(m.content)) || [])[1];
+        cur = { pid: d.promptId, sid, events: [{ t, e: "UserPromptSubmit", sid, pid: d.promptId, cwd, ...(cmd ? { cmd } : {}), ...(cap.prompts ? { prompt: cut(textOf(m.content), LIMITS.prompt) } : {}) }], calls: new Map(), tools: new Map(), last: t, answer: "" };
         turns.push(cur);
         continue;
       }
@@ -437,7 +497,7 @@ export function claudeTurns(text, cfg) {
       for (const b of blocks) {
         if (b && b.type === "tool_use" && typeof b.id === "string") {
           cur.tools.set(b.id, b.name || "tool");
-          cur.events.push({ t, e: "PreToolUse", sid, tid: b.id, tool: b.name || "tool", ...(cap.tool_io ? { input: cut(b.input, LIMITS.tool) } : {}) });
+          cur.events.push({ t, e: "PreToolUse", sid, tid: b.id, tool: b.name || "tool", meta: toolFacts(b.name, b.input), ...(cap.tool_io ? { input: cut(b.input, LIMITS.tool) } : {}) });
         } else if (b && b.type === "text" && typeof b.text === "string" && b.text.trim()) cur.answer = b.text;
       }
       if (m.id && m.usage) foldCall(cur.calls, d, m, t);
@@ -496,7 +556,7 @@ export function codexTurns(text, cfg) {
       else if (typeof p.call_id === "string" && /_call$/.test(kind)) {
         const name = String(p.name || (kind === "local_shell_call" ? "shell" : kind.replace(/_call$/, "")));
         cur.pending.set(p.call_id, name);
-        cur.events.push({ t, e: "PreToolUse", sid, tid: p.call_id, tool: name, ...(cap.tool_io ? { input: cut(p.arguments ?? p.input ?? p.action ?? "", LIMITS.tool) } : {}) });
+        cur.events.push({ t, e: "PreToolUse", sid, tid: p.call_id, tool: name, meta: toolFacts(name, p.arguments ?? p.input ?? p.action), ...(cap.tool_io ? { input: cut(p.arguments ?? p.input ?? p.action ?? "", LIMITS.tool) } : {}) });
       } else if (typeof p.call_id === "string" && /_output$/.test(kind)) {
         cur.events.push({ t, e: "PostToolUse", sid, tid: p.call_id, tool: cur.pending.get(p.call_id) || "tool", ...(cap.tool_io ? { output: cut(p.output ?? "", LIMITS.tool) } : {}) });
       }

@@ -30,6 +30,7 @@ function hashFor(ctx, parts, patch = {}) {
 }
 
 export default async function traces(ctx) {
+  if (ctx.parts[1] === "person" && ctx.parts[2]) return personPage(ctx, ctx.parts[2]);
   if (ctx.parts[1]) return tracePage(ctx, ctx.parts[1]);
   return traceList(ctx);
 }
@@ -131,7 +132,7 @@ async function traceList(ctx) {
       h("button", { type: "button", class: "btn btn-sm", onclick: () => ctx.setQuery({ session: null }) }, "Show all traces")));
   }
   if (person && tab === "traces") {
-    box.append(h("p", { class: "notice" }, icon("info"), h("span", null, "Showing traces from ", h("strong", null, person), "."),
+    box.append(h("p", { class: "notice" }, icon("info"), h("span", null, "Showing traces from ", h("strong", null, person), ". "), h("a", { href: hashFor(ctx, ["traces", "person", person], { user: null, tab: null }) }, "Open their usage and reports"),
       h("button", { type: "button", class: "btn btn-sm", onclick: () => ctx.setQuery({ user: null }) }, "Show everyone")));
   }
   const body = h("div", null, skeleton(8));
@@ -239,7 +240,7 @@ async function peopleList(ctx, body, app) {
           .map(([k, v]) => h("div", { class: "kpi" }, h("span", { class: "kpi-label" }, k), h("span", { class: "kpi-value num" }, v)))),
       h("section", { class: "card card-flush", "aria-label": "People" }, table([
         { label: "Person", render: (p) => h("div", { class: "tr-name" },
-            h("a", { href: hashFor(ctx, ["traces"], { tab: null, user: p.user_id }), class: "tr-link" }, p.user_id),
+            h("a", { href: hashFor(ctx, ["traces", "person", p.user_id], { tab: null, user: null }), class: "tr-link" }, p.user_id),
             h("span", { class: "tr-name-meta" }, (p.apps || []).map((a) => h("span", { class: "badge" }, a)), p.errors ? badge(plural(p.errors, "error"), "neg") : null),
             h("span", { class: "small muted show-sm" }, `Last active ${when(p.last_active_ms)}`)) },
         { label: "Tokens", class: "tr-usage", render: (p) => h("div", { class: "tr-usage-cell" },
@@ -254,6 +255,108 @@ async function peopleList(ctx, body, app) {
   } catch (err) {
     clear(body).append(errorBox(err, () => { clear(body).append(skeleton(8)); peopleList(ctx, body, app); }));
   }
+}
+
+// ---------------------------------------------------------------- one person
+
+const LEVEL = { watch: ["Watch", "neg"], tip: ["Try", "warn"], good: ["Good", "ok"] };
+const KIND_NAME = { builtin: "Built in", shell: "Shell", mcp: "MCP", skill: "Skill", subagent: "Subagent" };
+const share = (part, whole) => (whole ? `${Math.round((part / whole) * 100)}%` : "–");
+
+function nameTable(title, rows, cols, emptyText) {
+  return h("section", { class: "card card-flush", "aria-label": title }, h("header", { class: "card-head" }, h("h2", { class: "card-title" }, title), h("span", { class: "small muted num" }, rows.length ? String(rows.length) : "")),
+    rows.length ? table(cols, rows, { label: title }) : h("p", { class: "muted small tr-none" }, emptyText));
+}
+
+function reportBody(r) {
+  const t = r.totals;
+  const line = (label, items, f = (i) => `${i.name} (${fmt.int(i.calls)})`) => (items && items.length ? h("div", null, h("dt", null, label), h("dd", null, items.slice(0, 6).map(f).join(", "))) : null);
+  return h("div", { class: "tr-report" },
+    h("p", { class: "tr-report-lead" }, `${plural(t.turns, "turn")} in ${plural(t.sessions, "session")}, ${tokens(t.total_tokens)} tokens, ${plural(t.tool_calls, "tool call")}${t.tool_failures ? ` (${fmt.int(t.tool_failures)} failed)` : ""}.`,
+      r.usual ? h("span", { class: "muted" }, ` Usual for an active day in the week before: about ${fmt.int(r.usual.turns_per_day)} turns and ${tokens(r.usual.tokens_per_day)} tokens.`) : h("span", { class: "muted" }, " No activity in the week before to compare with.")),
+    r.observations.length
+      ? h("ul", { class: "tr-obs" }, r.observations.map((o) => h("li", { class: `tr-obs-${o.level}` }, badge(LEVEL[o.level][0], LEVEL[o.level][1]), h("div", null, h("p", { class: "tr-obs-title" }, o.title), h("p", { class: "small muted" }, o.detail)))))
+      : h("p", { class: "muted" }, "Nothing stood out on this day."),
+    h("dl", { class: "tr-report-facts" },
+      line("Tools", r.top_tools), line("Shell programs", r.programs), line("Skills", r.skills), line("Plugins", r.plugins), line("MCP servers", r.mcp_servers), line("Subagents", r.subagents),
+      line("Models", r.models, (m) => `${m.name} (${tokens(m.tokens)} tokens)`), line("Projects", r.projects, (p) => `${p.name} (${plural(p.calls, "turn")})`)),
+    h("p", { class: "small muted" }, r.stored ? "Written after the day ended." : "Preview: this day's report is written after the day ends (UTC) and may still change."));
+}
+
+async function personPage(ctx, user) {
+  const back = h("a", { class: "tr-back", href: hashFor(ctx, ["traces"], { tab: "people" }) }, icon("chev"), "All people");
+  const box = h("div", null, skeleton(8));
+  ctx.el.append(back, box);
+  let s;
+  try { s = await api(`tracing/people/${encodeURIComponent(user)}`, { query: { from: ctx.f.from, to: ctx.f.to } }); }
+  catch (err) {
+    clear(box).append(err.status === 404 ? empty("No traces from this person in this range", "Try a wider date range.") : errorBox(err, () => ctx.setQuery({})));
+    return;
+  }
+  if (!ctx.alive()) return;
+  document.title = `${user} · Traces · GEO Observability`;
+  const t = s.totals;
+  const kpi = (label, value, note) => h("div", { class: "kpi" }, h("span", { class: "kpi-label" }, label), h("span", { class: "kpi-value num" }, value), note ? h("span", { class: "kpi-help" }, note) : null);
+  const calls = { label: "Calls", num: true, render: (r) => fmt.int(r.calls) };
+  const failed = { label: "Failed", num: true, render: (r) => (r.failures ? h("span", { class: "tr-fail" }, `${fmt.int(r.failures)} (${share(r.failures, r.calls)})`) : "0") };
+  const named = (label) => ({ label, render: (r) => h("span", { class: "tr-cellname" }, r.name) });
+
+  // Daily report: newest active day first.
+  const dayList = s.days.map((d) => d.day).reverse();
+  const reportBox = h("div", { class: "card-body" }, skeleton(4));
+  const loadReport = async (day) => {
+    clear(reportBox).append(skeleton(4));
+    try {
+      const r = await api(`tracing/people/${encodeURIComponent(user)}/reports/${day}`);
+      if (ctx.alive()) clear(reportBox).append(reportBody(r));
+    } catch (err) { clear(reportBox).append(err.status === 404 ? h("p", { class: "muted" }, "No activity on that day.") : errorBox(err, () => loadReport(day))); }
+  };
+  const daySel = h("select", { class: "select select-sm", "aria-label": "Report day", onchange: (e) => loadReport(e.target.value) }, dayList.map((d) => h("option", { value: d }, fmt.dateLong(d))));
+
+  const maxTurns = Math.max(1, ...s.days.map((d) => d.turns));
+  clear(box).append(
+    h("header", { class: "page-head tr-head" },
+      h("div", null, h("h1", null, user),
+        h("div", { class: "chat-meta wrap" }, s.apps.map((a) => h("span", { class: "badge" }, `${a.name} · ${plural(a.calls, "turn")}`)), h("span", { class: "small muted" }, `${fmt.dateLong(ctx.f.from)} to ${fmt.dateLong(ctx.f.to)}`))),
+      h("div", { class: "page-actions" }, h("a", { class: "btn", href: hashFor(ctx, ["traces"], { user, tab: null }) }, "See their traces"))),
+    h("div", { class: "kpis kpis-compact tr-kpis tr-kpis-6" },
+      kpi("Turns", fmt.int(t.turns), `${plural(t.sessions, "session")}, ${plural(t.active_days, "active day")}`),
+      kpi("Tokens", tokens(t.total_tokens), `${fmt.int(t.model_calls)} model calls`),
+      kpi("Reused from cache", share(t.cache_read_tokens, t.prompt_tokens), "of input tokens"),
+      kpi("Tool calls", fmt.int(t.tool_calls), t.turns ? `${(t.tool_calls / t.turns).toFixed(1)} a turn` : null),
+      kpi("Tool failures", share(t.tool_failures, t.tool_calls), `${fmt.int(t.tool_failures)} failed`),
+      kpi("Turns cut short", share(t.unfinished_turns, t.turns), `${fmt.int(t.unfinished_turns)} of ${fmt.int(t.turns)}`)),
+    h("div", { class: "tr-grid2" },
+      h("section", { class: "card", "aria-label": "Daily report" }, h("header", { class: "card-head" }, h("h2", { class: "card-title" }, "Daily report"), daySel), reportBox),
+      h("section", { class: "card", "aria-label": "Activity by day" }, h("header", { class: "card-head" }, h("h2", { class: "card-title" }, "Activity by day")),
+        h("div", { class: "card-body" }, h("ol", { class: "tr-days" }, [...s.days].reverse().slice(0, 31).map((d) => h("li", null,
+          h("span", { class: "small nowrap" }, fmt.date(d.day)),
+          h("span", { class: "tr-track", "aria-hidden": "true" }, h("span", { class: "tr-bar", style: { left: "0", width: `${Math.max(2, (d.turns / maxTurns) * 100)}%` } })),
+          h("span", { class: "small muted num nowrap" }, `${plural(d.turns, "turn")} · ${tokens(d.tokens)}`))))))),
+    h("div", { class: "tr-grid2" },
+      nameTable("Tools", s.tools, [
+        { label: "Tool", render: (r) => h("div", { class: "tr-name" }, h("span", { class: "tr-cellname" }, r.name), h("span", { class: "small muted" }, KIND_NAME[r.kind] || r.kind)) },
+        calls, failed, { label: "Average time", num: true, class: "hide-sm", render: (r) => dur(r.avg_ms) }], "No tool calls in this range."),
+      h("div", { class: "tr-stack" },
+        nameTable("Models", s.models, [named("Model"), calls, { label: "Tokens", num: true, render: (r) => tokens(r.tokens) }], "No model calls in this range."),
+        nameTable("Shell programs", s.programs, [named("Program"), calls, failed], "No shell programs recorded. Program names come from the geo-trace script."),
+        nameTable("Projects", s.projects, [named("Folder"), { label: "Turns", num: true, render: (r) => fmt.int(r.calls) }], "No project folders recorded."))),
+    h("div", { class: "tr-grid2" },
+      h("div", { class: "tr-stack" },
+        nameTable("Skills", s.skills, [named("Skill"), calls, failed], "No skills used in this range."),
+        nameTable("Subagents", s.subagents, [named("Type"), calls, failed], "No subagents used in this range."),
+        nameTable("Slash commands", s.commands, [named("Command"), { label: "Turns", num: true, render: (r) => fmt.int(r.calls) }], "No slash commands used in this range.")),
+      h("div", { class: "tr-stack" },
+        nameTable("Plugins", s.plugins, [named("Plugin"), calls, failed], "No plugin tools or skills used in this range."),
+        nameTable("MCP servers", s.mcp_servers, [named("Server"), calls, failed], "No MCP tools used in this range."))),
+    nameTable("Recent sessions", s.sessions, [
+      { label: "Last active", class: "hide-sm", render: (r) => h("span", { class: "nowrap" }, when(r.end_ms)) },
+      { label: "Session", render: (r) => h("div", { class: "tr-name" }, h("a", { href: hashFor(ctx, ["traces"], { session: r.session_id, user: null, tab: null }), class: "tr-link mono" }, r.session_id), h("span", { class: "small muted" }, r.app, r.errors ? ` · ${plural(r.errors, "failed turn")}` : "")) },
+      { label: "Turns", num: true, render: (r) => fmt.int(r.turns) },
+      { label: "Tokens", num: true, render: (r) => tokens(r.tokens) },
+      { label: "Length", num: true, class: "hide-sm", render: (r) => dur(r.end_ms - r.start_ms) }], "No sessions in this range."),
+    h("p", { class: "small muted tr-foot" }, "Names only: which tools, skills, plugins and programs were used. What was typed, read or run is not part of these counts."));
+  if (dayList.length) loadReport(dayList[0]); else clear(reportBox).append(h("p", { class: "muted" }, "No activity in this range."));
 }
 
 // ---------------------------------------------------------------- trace page
