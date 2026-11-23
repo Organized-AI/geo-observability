@@ -1,11 +1,12 @@
 /**
  * Builds the SQL for the read-only demo workspace: a fictional brand, four fictional competitors,
  * 30 days of sample answers from the stub engine, plus sample crawler, referral and conversion data,
- * insights and actions. Every run is stored with channel = 'stub', so the portal labels it as sample data.
+ * insights and actions, and sample LLM traces. Every run is stored with channel = 'stub', so the portal labels it as sample data.
  */
 import { rng, stubAnswer } from "../../src/engines/stub";
 import { classifyDomain, findMentions, type BrandMatcher } from "../../src/judge/mentions";
 import { canonicalUrl, domainOf, pathOf } from "../../src/lib/util";
+import { demoTraces } from "./traces";
 
 const q = (v: unknown) => (v === null || v === undefined ? "NULL" : typeof v === "number" ? String(v) : `'${String(v).replace(/'/g, "''")}'`);
 
@@ -13,7 +14,7 @@ export function generate(days = 30, endDay = new Date().toISOString().slice(0, 1
   const T = "ten_demo";
   const P = "prj_demo";
   const out: string[] = ["PRAGMA foreign_keys = OFF;"];
-  for (const t of ["mentions", "citations", "fanout_queries", "claims", "runs", "daily_brand_metrics", "crawl_daily", "referral_daily", "conversion_daily", "insights", "actions", "prompts", "topics", "brands", "project_models", "project_countries", "brand_profiles", "projects", "domain_classes", "usage_events"]) {
+  for (const t of ["llm_spans", "llm_traces", "trace_apps", "mentions", "citations", "fanout_queries", "claims", "runs", "daily_brand_metrics", "crawl_daily", "referral_daily", "conversion_daily", "insights", "actions", "prompts", "topics", "brands", "project_models", "project_countries", "brand_profiles", "projects", "domain_classes", "usage_events"]) {
     out.push(`DELETE FROM ${t} WHERE tenant_id = '${T}';`);
   }
   out.push(`DELETE FROM tenants WHERE id = '${T}';`);
@@ -178,6 +179,7 @@ export function generate(days = 30, endDay = new Date().toISOString().slice(0, 1
   actions.forEach(([kind, title, detail, impact], i) =>
     out.push(`INSERT INTO actions (id, tenant_id, project_id, kind, title, detail, evidence, impact) VALUES ('act_demo_${i}', '${T}', '${P}', '${kind}', ${q(title)}, ${q(detail)}, '{"sample":true}', ${impact});`),
   );
+  out.push(...demoTraces(T, dayList));
   out.push("PRAGMA foreign_keys = ON;");
   return out.join("\n") + "\n";
 }

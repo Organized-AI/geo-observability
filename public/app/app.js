@@ -13,6 +13,7 @@ import insights from "./js/views/insights.js";
 import perception from "./js/views/perception.js";
 import setup from "./js/views/setup.js";
 import usage from "./js/views/usage.js";
+import traces from "./js/views/traces.js";
 
 const ROUTES = {
   overview: { label: "Overview", icon: "overview", filters: "all", view: overview },
@@ -24,6 +25,7 @@ const ROUTES = {
   actions: { label: "Actions", icon: "actions", filters: "none", view: actions },
   insights: { label: "Insights", icon: "insights", filters: "date", view: insights },
   perception: { label: "Perception", icon: "perception", filters: "all", view: perception },
+  traces: { label: "Traces", icon: "traces", filters: "date", view: traces },
   setup: { label: "Setup", icon: "setup", filters: "none", view: setup },
   usage: { label: "Usage & API", icon: "usage", filters: "none", view: usage },
 };
@@ -311,7 +313,7 @@ async function render() {
   if (!ids.includes(pid)) pid = ids.includes(store.get("geo-project")) ? store.get("geo-project") : ids[0] || null;
   state.pid = pid;
   if (pid) store.set("geo-project", pid);
-  if (!pid && route.name !== "setup" && route.name !== "usage") {
+  if (!pid && route.name !== "setup" && route.name !== "usage" && route.name !== "traces") {
     if (readOnly()) { def = null; }
     else { location.replace("#/setup?tab=new"); return; }
   }
