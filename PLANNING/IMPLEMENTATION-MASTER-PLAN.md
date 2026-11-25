@@ -73,7 +73,7 @@ Built so far: T0–T5, H1–H5, R1, P1, P2, each tagged `build/1.5.0-<phase>`. T
 
 | Phase | Scope | Done when |
 | --- | --- | --- |
-| G1 Public repo hygiene | Keep competitor research out of the public repo; the spec holds only our own decisions | No competitor material in the branch |
+| G1 Public repo hygiene (done) | Keep competitor research out of the public repo; the spec holds only our own decisions | No competitor material in the branch |
 | G2 Identity and access | Per-person ingest keys issued from the portal (today `user.id` is self-declared); People, reports and trace content limited to owners and the person themselves | A person cannot send as someone else, or read another person's prompts without owner rights |
 | G3 Privacy and notice | Workspace setting for capture level (metadata only, prompts, tool content); a plain notice shown at install; redaction of common secret patterns before send | Owner chooses the level; installer shows what is captured |
 | G4 Capacity and quotas | Per-plan span and storage limits with metering; long span bodies to R2 so D1 stays small; load test of ingest, retention prune and daily reports at a 50-person workspace | Limits enforced and measured on staging |
