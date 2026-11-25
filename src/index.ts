@@ -1,4 +1,6 @@
 import { Hono } from "hono";
+import { TenantDB } from "./lib/db";
+import { getCapture } from "./tracing/policy";
 import type { Env, RunJob } from "./env";
 import { HttpError } from "./lib/util";
 import { portalApi, sharedApi, tenantsApi } from "./routes/portal";
@@ -103,6 +105,15 @@ app.post("/ingest/otlp/v1/traces", async (c) => {
   const { spans, encoding } = await readExport(c.req.raw);
   const res = await ingestSpans(c.env, key.tenantId, spans, c.req.header("x-project-name") ?? null, key.person);
   return exportResponse(encoding, res.rejected, res.reason);
+});
+
+/** What a key may send: the installer shows it, and the hook narrows what it sends to match. */
+app.get("/ingest/otlp/policy", async (c) => {
+  const auth = c.req.header("authorization") ?? "";
+  const secret = c.req.header("x-ingest-key") ?? (/^Bearer\s+/i.test(auth) ? auth.replace(/^Bearer\s+/i, "").trim() : null);
+  const key = await resolveKey(c.env, secret, ["ingest"]);
+  await rateLimit(c.env, key.keyId, 600);
+  return c.json({ capture: await getCapture(new TenantDB(c.env.DB, key.tenantId)), person: key.person });
 });
 
 app.all("/api/*", (c) => c.json({ error: "not_found", message: "No such endpoint" }, 404));

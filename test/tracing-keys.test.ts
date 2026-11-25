@@ -159,3 +159,72 @@ describe("who can read coding-tool content", () => {
     expect(people.map((p) => p.user_id)).toEqual(expect.arrayContaining(["sam@keys.test", "kim@keys.test"]));
   });
 });
+
+describe("capture level and redaction", () => {
+  let ownerKey = "";
+  const T_TOOL = "5".repeat(32);
+
+  function codingSpans(traceId: string, prompt: string) {
+    const body = turn(traceId, "x", prompt);
+    const root = body.resourceSpans[0]!.scopeSpans[0]!.spans[0]!;
+    const tool = {
+      ...root,
+      spanId: "6".repeat(16),
+      parentSpanId: root.spanId,
+      name: "Bash",
+      attributes: [str("openinference.span.kind", "TOOL"), str("harness.name", "claude-code"), str("tool.name", "Bash"), str("input.value", "cat .env"), str("output.value", "DB_PASSWORD=hunter2hunter2")],
+    };
+    body.resourceSpans[0]!.scopeSpans[0]!.spans.push(tool as typeof root);
+    return body;
+  }
+  const spanText = (traceId: string) =>
+    env.DB.prepare("SELECT span_id, input_text, output_text, attributes FROM llm_spans WHERE tenant_id = ?1 AND trace_id = ?2 ORDER BY span_id").bind(tenantId, traceId).all<{ span_id: string; input_text: string | null; output_text: string | null; attributes: string }>();
+
+  beforeAll(async () => {
+    ownerKey = (await call("POST", "/api/tracing/keys", {})).json.secret;
+  });
+
+  it("lets only an owner change the level, and tells a key what it is", async () => {
+    expect((await call("GET", "/api/tracing/settings", undefined, samCookie)).json).toEqual({ capture: "full" });
+    expect((await call("PUT", "/api/tracing/settings", { capture: "metadata" }, samCookie)).status).toBe(403);
+    expect((await call("PUT", "/api/tracing/settings", { capture: "everything" })).status).toBe(400);
+    expect((await call("PUT", "/api/tracing/settings", { capture: "prompts" })).status).toBe(200);
+    const res = await SELF.fetch("https://geo.test/ingest/otlp/policy", { headers: { "x-ingest-key": ownerKey } });
+    expect(await res.json()).toEqual({ capture: "prompts", person: "owner@agency.test" });
+    expect((await SELF.fetch("https://geo.test/ingest/otlp/policy")).status).toBe(401);
+  });
+
+  it("prompts: keeps the prompt but drops tool inputs and outputs", async () => {
+    expect((await send(ownerKey, codingSpans(T_TOOL, "please deploy"))).status).toBe(200);
+    const rows = (await spanText(T_TOOL)).results;
+    const tool = rows.find((r) => r.span_id === "6".repeat(16))!;
+    const root = rows.find((r) => r.span_id !== "6".repeat(16))!;
+    expect(root.input_text).toBe("please deploy");
+    expect(tool.input_text).toBeNull();
+    expect(tool.output_text).toBeNull();
+    expect(tool.attributes).not.toContain("hunter2");
+    expect(JSON.parse(tool.attributes)["tool.name"]).toBe("Bash");
+  });
+
+  it("metadata: no text at all from coding tools; other apps are unaffected", async () => {
+    expect((await call("PUT", "/api/tracing/settings", { capture: "metadata" })).status).toBe(200);
+    const T_META = "7".repeat(32);
+    expect((await send(ownerKey, turn(T_META, "x", "secret roadmap"))).status).toBe(200);
+    const row = (await spanText(T_META)).results[0]!;
+    expect(row.input_text).toBeNull();
+    expect(row.attributes).not.toContain("secret roadmap");
+    const appKey = (await call("POST", "/api/keys", { name: "app2", scope: "ingest" })).json.secret;
+    const T_APP2 = "8".repeat(32);
+    expect((await send(appKey, turn(T_APP2, "u", "app question", false))).status).toBe(200);
+    expect((await spanText(T_APP2)).results[0]!.input_text).toBe("app question");
+    await call("PUT", "/api/tracing/settings", { capture: "full" });
+  });
+
+  it("redacts secrets in any span before storing it", async () => {
+    const T_SECRET = "9".repeat(32);
+    expect((await send(ownerKey, turn(T_SECRET, "x", "use key sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123 please"))).status).toBe(200);
+    const row = (await spanText(T_SECRET)).results[0]!;
+    expect(row.input_text).toBe("use key [redacted:anthropic-key] please");
+    expect(row.attributes).not.toContain("sk-ant-api03");
+  });
+});

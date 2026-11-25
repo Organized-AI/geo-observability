@@ -11,6 +11,7 @@ import { MAX_BODY_BYTES } from "../tracing/otlp";
 import { peopleCsv, tracesCsv, tracesJsonl } from "../tracing/export";
 import { retentionDays, retentionStatus } from "../tracing/retention";
 import { getReport, listReports, personSummary, teamSummary } from "../tracing/people";
+import { CAPTURES, getCapture, setCapture, type Capture } from "../tracing/policy";
 import type { AppEnv } from "./portal";
 
 export const tracingApi = new Hono<AppEnv>();
@@ -167,6 +168,22 @@ tracingApi.get("/export/traces.jsonl", (c) => {
 tracingApi.get("/export/people.csv", async (c) => {
   const f = filtersFrom(new URL(c.req.url).searchParams);
   return new Response(await peopleCsv(c.get("session").tdb, { appId: f.appId, fromMs: f.fromMs, toMs: f.toMs }), { headers: download(`people-${stamp()}.csv`, "text/csv; charset=utf-8") });
+});
+
+// ------------------------------------------------------------------ capture level
+
+tracingApi.get("/settings", async (c) => c.json({ capture: await getCapture(c.get("session").tdb) }));
+
+/** Owners choose what coding tools may send. It is enforced at ingest, whatever each machine is set to. */
+tracingApi.put("/settings", async (c) => {
+  const s = c.get("session");
+  requireWrite(s);
+  requireOwner(s);
+  const b = (await c.req.json().catch(() => ({}))) as { capture?: unknown };
+  if (!CAPTURES.includes(b.capture as Capture)) throw new HttpError(400, "bad_request", "capture must be full, prompts or metadata");
+  await setCapture(s.tdb, b.capture as Capture, s.email);
+  await s.tdb.run("INSERT INTO audit_log (id, tenant_id, user_email, action, detail) VALUES (?2, ?1, ?3, 'trace_settings.update', ?4)", newId("aud"), s.email, JSON.stringify({ capture: b.capture }));
+  return c.json({ capture: b.capture });
 });
 
 // ------------------------------------------------------------------ personal keys

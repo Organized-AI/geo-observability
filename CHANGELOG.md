@@ -7,6 +7,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 ### Added
 
 - Personal tracing keys for Claude Code and Codex: every turn sent with one belongs to its person, whatever the machine claims. Make one under Traces, Send traces.
+- A workspace capture level for coding tools (everything, prompts and answers, or usage only), set by an owner and enforced when traces arrive.
+- Secrets (API keys, tokens, passwords, private keys) are replaced before a turn leaves the machine and again on arrival.
+- The installer prints what it will send, under which name, and who can read it.
 
 ### Changed
 

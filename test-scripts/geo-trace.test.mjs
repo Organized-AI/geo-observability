@@ -208,6 +208,7 @@ async function withServer(fn) {
     let body = "";
     req.on("data", (c) => { body += c; });
     req.on("end", () => {
+      if (req.method === "GET") return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ capture: "full", person: null }));
       if (mode === 200) got.push({ url: req.url, key: req.headers["x-ingest-key"], body: JSON.parse(body) });
       res.writeHead(mode, { "content-type": "application/json" }).end("{}");
     });
@@ -543,4 +544,42 @@ test("toolFacts keeps names and drops everything else", async () => {
   assert.equal(/secret-branch|PRIVATE|--stat/.test(JSON.stringify(spans)), false);
   const none = toOtlp(buildTurn("claude", cfgNone, ev.map((e) => ({ ...e, prompt: undefined })))).resourceSpans[0].scopeSpans[0].spans;
   assert.equal(attrs(none.find((s) => s.name === "turn"))["slash.command"], "review", "the command's name is kept even when prompts are not sent");
+});
+
+// ------------------------------------------------------------------ G3: redaction and capture level
+
+test("redact replaces common secrets and keeps the text around them", async () => {
+  const { redact } = await import("../public/trace/geo-trace.mjs");
+  const cases = [
+    ["key sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123 here", "key [redacted:anthropic-key] here"],
+    ["OPENAI sk-proj-ABCDEFGHIJKLMNOPQRSTUVWX123", "OPENAI [redacted:openai-key]"],
+    ["token ghp_abcdefghijklmnopqrstuvwxyz0123456789", "token [redacted:github-token]"],
+    ["AKIAABCDEFGHIJKLMNOP", "[redacted:aws-key]"],
+    ["Authorization: Bearer abcdefghijklmnopqrstuvwxyz.0123", "Authorization: Bearer [redacted:bearer]"],
+    ["postgres://app:hunter2secret@db.local/x", "postgres://app:[redacted:url-password]@db.local/x"],
+    ['DB_PASSWORD="correct-horse-battery"', 'DB_PASSWORD="[redacted:assignment]"'],
+    ["-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----", "[redacted:private-key]"],
+    ["nothing secret in this sentence about passwords", "nothing secret in this sentence about passwords"],
+  ];
+  for (const [input, want] of cases) assert.equal(redact(input), want, input);
+});
+
+test("the hook and the server use the same redaction rules", async () => {
+  const { readFileSync } = await import("node:fs");
+  const lits = (text) => [...text.matchAll(/\["([a-z-]+)", (\/.*\/[gimsuy]*)\]/g)].map((m) => `${m[1]} ${m[2]}`);
+  const hook = lits(readFileSync(new URL("../public/trace/geo-trace.mjs", import.meta.url), "utf8"));
+  const server = lits(readFileSync(new URL("../src/tracing/redact.ts", import.meta.url), "utf8"));
+  assert.ok(hook.length >= 10);
+  assert.deepEqual(hook, server);
+});
+
+test("a workspace level only narrows what a machine sends", async () => {
+  const { narrow, policyUrl } = await import("../public/trace/geo-trace.mjs");
+  const all = { prompts: true, responses: true, tool_io: true };
+  assert.deepEqual(narrow(all, "full"), all);
+  assert.deepEqual(narrow(all, "prompts"), { prompts: true, responses: true, tool_io: false });
+  assert.deepEqual(narrow(all, "metadata"), { prompts: false, responses: false, tool_io: false });
+  assert.deepEqual(narrow({ prompts: false, responses: false, tool_io: false }, "full"), { prompts: false, responses: false, tool_io: false });
+  assert.equal(policyUrl("https://h/ingest/otlp/"), "https://h/ingest/otlp/policy");
+  assert.equal(policyUrl("https://h/ingest/otlp/v1/traces"), "https://h/ingest/otlp/policy");
 });

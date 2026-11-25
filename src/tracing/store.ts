@@ -6,6 +6,7 @@
  * request has its summary row recomputed from the spans now stored. Because the summary is always derived from stored spans, the order
  * spans arrive in and how often they are resent cannot change the totals.
  */
+import { applyPolicy, getCapture } from "./policy";
 import type { Env } from "../env";
 import { TenantDB } from "../lib/db";
 import { chunk, newId, nowIso } from "../lib/util";
@@ -160,6 +161,8 @@ export async function ingestSpans(env: Env, tenantId: string, spans: OtlpSpan[],
     } else good.push(s);
   }
   if (!good.length) return { accepted: 0, rejected, reason: [...reasons].join("; "), traces: 0 };
+  const capture = await getCapture(tdb);
+  for (let i = 0; i < good.length; i++) good[i] = applyPolicy(good[i] as OtlpSpan, capture);
 
   const appIds = await resolveApps(tdb, new Set(good.map((s) => appNameFor(s, headerApp))));
   const stmts: D1PreparedStatement[] = [];

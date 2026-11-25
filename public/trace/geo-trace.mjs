@@ -34,10 +34,18 @@ const claudeDir = () => process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claud
 const codexDir = () => process.env.CODEX_HOME || join(homedir(), ".codex");
 const safe = (s) => String(s || "unknown").replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 120);
 
+/** The workspace's level can only narrow what this machine sends, never widen it. */
+export function narrow(capture, workspace) {
+  const c = { ...capture };
+  if (workspace === "metadata") { c.prompts = false; c.responses = false; c.tool_io = false; }
+  if (workspace === "prompts") c.tool_io = false;
+  return c;
+}
+
 export function loadConfig() {
   try {
     const c = JSON.parse(readFileSync(join(dataDir(), "config.json"), "utf8"));
-    return { ...c, capture: { prompts: true, responses: true, tool_io: false, ...(c.capture || {}) } };
+    return { ...c, capture: narrow({ prompts: true, responses: true, tool_io: false, ...(c.capture || {}) }, c.workspace_capture) };
   } catch {
     return null;
   }
@@ -328,6 +336,37 @@ export function buildTurn(harness, cfg, events, extra = {}) {
 }
 
 const anyValue = (v) => (typeof v === "boolean" ? { boolValue: v } : typeof v === "number" ? (Number.isInteger(v) ? { intValue: String(v) } : { doubleValue: v }) : { stringValue: String(v) });
+// Things that look like secrets are replaced before a turn leaves the machine. The server runs the same rules
+// (src/tracing/redact.ts); a test keeps the two lists equal.
+export const SECRET_RULES = [
+  ["private-key", /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g],
+  ["anthropic-key", /\bsk-ant-[A-Za-z0-9_-]{20,}/g],
+  ["openai-key", /\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20,}/g],
+  ["stripe-key", /\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}/g],
+  ["github-token", /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,})/g],
+  ["slack-token", /\bxox[abposr]-[A-Za-z0-9-]{10,}/g],
+  ["aws-key", /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g],
+  ["google-key", /\bAIza[A-Za-z0-9_-]{35}\b/g],
+  ["jwt", /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g],
+  ["bearer", /\b(Bearer)\s+[A-Za-z0-9._~+/=-]{20,}/g],
+  ["url-password", /(\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/]+:)[^\s@/]{3,}(@)/gi],
+  ["assignment", /(\b[A-Za-z0-9_.-]*(?:password|passwd|secret|token|api[_-]?key|access[_-]?key)["']?\s*[:=]\s*["']?)[^\s"',;]{6,}/gi],
+];
+
+export function redact(text) {
+  let out = String(text);
+  for (const [name, re] of SECRET_RULES) {
+    out = out.replace(re, (...m) => {
+      const g1 = typeof m[1] === "string" && m.length > 3 ? m[1] : "";
+      const g2 = typeof m[2] === "string" && m.length > 4 ? m[2] : "";
+      return `${g1}${g1 && name === "bearer" ? " " : ""}[redacted:${name}]${g2}`;
+    });
+  }
+  return out;
+}
+
+const scrub = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === "string" ? redact(v) : v]));
+
 const kvs = (o) => Object.entries(o).filter(([, v]) => v !== undefined && v !== null).map(([key, v]) => ({ key, value: anyValue(v) }));
 
 /** OTLP/JSON body for one turn. */
@@ -338,7 +377,7 @@ export function toOtlp(turn) {
       scopeSpans: [{ scope: { name: "geo-trace", version: VERSION }, spans: turn.spans.map((s) => ({
         traceId: turn.traceId, spanId: s.id, ...(s.parent ? { parentSpanId: s.parent } : {}), name: s.name, kind: 1,
         startTimeUnixNano: `${Math.round(s.start)}000000`, endTimeUnixNano: `${Math.round(s.end)}000000`,
-        attributes: kvs(s.attrs), status: s.error ? { code: 2, message: String(s.error) } : { code: 1 },
+        attributes: kvs(scrub(s.attrs)), status: s.error ? { code: 2, message: redact(String(s.error)) } : { code: 1 },
       })) }],
     }],
   };
@@ -347,6 +386,31 @@ export function toOtlp(turn) {
 // ------------------------------------------------------------------ sending
 
 export const tracesUrl = (endpoint) => (/\/v1\/traces\/?$/.test(endpoint) ? endpoint : `${endpoint.replace(/\/+$/, "")}/v1/traces`);
+
+export const policyUrl = (endpoint) => `${endpoint.replace(/\/v1\/traces\/?$/, "").replace(/\/+$/, "")}/policy`;
+
+/** The workspace's capture level for this key, or null when it can't be read. */
+async function fetchPolicy(cfg, timeoutMs = 4000) {
+  try {
+    const res = await fetch(policyUrl(cfg.endpoint), { headers: { "x-ingest-key": cfg.key }, signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
+    if (!res.ok) return null;
+    const p = await res.json();
+    return ["full", "prompts", "metadata"].includes(p.capture) ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Re-reads the workspace level once a day, so an owner's change reaches every machine. */
+async function refreshPolicy(cfg) {
+  if (Date.now() - (cfg.policy_at || 0) < 86_400_000) return cfg;
+  const p = await fetchPolicy(cfg, 2500);
+  const raw = JSON.parse(readFileSync(join(dataDir(), "config.json"), "utf8"));
+  raw.policy_at = Date.now();
+  if (p) raw.workspace_capture = p.capture;
+  writePrivate(join(dataDir(), "config.json"), `${JSON.stringify(raw, null, 2)}\n`);
+  return p ? { ...cfg, workspace_capture: p.capture, capture: narrow(cfg.capture, p.capture) } : cfg;
+}
 
 async function post(cfg, body, timeoutMs = 8000) {
   const res = await fetch(tracesUrl(cfg.endpoint), { method: "POST", headers: { "content-type": "application/json", "x-ingest-key": cfg.key }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
@@ -393,8 +457,10 @@ function log(msg) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function flush(harness, cfg, _path, events) {
+async function flush(harness, cfgIn, _path, events) {
   if (!events.length) return;
+  let cfg = cfgIn;
+  try { cfg = await refreshPolicy(cfgIn); } catch { /* keep the last known level */ }
   const start = events.find((e) => e.e === "UserPromptSubmit") || events[0];
   const extra = {};
   if (harness === "claude") {
@@ -750,7 +816,10 @@ async function install(a, say) {
   const self = fileURLToPath(import.meta.url);
   if (self !== dest && !(existsSync(dest) && realpathSync(dest) === self)) copyFileSync(self, dest);
   chmodSync(dest, 0o700);
+  const policy = await fetchPolicy(cfg);
+  if (policy) Object.assign(cfg, { workspace_capture: policy.capture, policy_at: Date.now() });
   writePrivate(join(dataDir(), "config.json"), `${JSON.stringify(cfg, null, 2)}\n`);
+  const sent = narrow(cfg.capture, cfg.workspace_capture);
 
   const want = String(a.tools || "claude,codex").split(",").map((s) => s.trim()).filter((s) => TARGETS[s]);
   const done = [];
@@ -761,8 +830,19 @@ async function install(a, say) {
     done.push(name);
     say(`- ${t.label}: connected (${t.file()})`);
   }
-  say(`Sending as ${cfg.user} to ${tracesUrl(cfg.endpoint)}`);
-  say(`Prompts and answers: ${cfg.capture.prompts ? "sent" : "not sent"}. Tool inputs and outputs: ${cfg.capture.tool_io ? "sent" : "not sent"}.`);
+  say("");
+  say("What this machine sends from now on");
+  say(`  To:        ${tracesUrl(cfg.endpoint)}`);
+  say(`  As:        ${policy?.person ? `${policy.person} (set by your personal key)` : `${cfg.user} (a workspace key: the name is not verified)`}`);
+  say(`  Always:    timings, models, token counts, tool and skill names, project folder name`);
+  say(`  Prompts and answers:      ${sent.prompts ? "sent" : "not sent"}`);
+  say(`  Tool inputs and outputs:  ${sent.tool_io ? "sent" : "not sent"}`);
+  if (policy) say(`  Workspace level: ${policy.capture} (set by your workspace owner; it can only reduce what is sent)`);
+  else say("  Workspace level: could not be read yet; it is checked again each day");
+  say("  Things that look like passwords, keys and tokens are replaced before sending.");
+  say("  Who can read it: you and your workspace owners. Usage numbers are visible to your team.");
+  say(`  Stop at any time: node ${join(dataDir(), MARK)} uninstall`);
+  say("");
   if (done.includes("codex")) say("Codex asks you to approve new hooks: open Codex, run /hooks and approve geo-trace. Until then Codex sends nothing.");
   if (!a["skip-test"]) {
     let status = 0;

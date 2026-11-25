@@ -44,6 +44,48 @@ function codeBlock(title, text) {
 const installCmd = (s, key, user) =>
   `curl -fsSL ${s.installer_url} -o geo-trace.mjs\nnode geo-trace.mjs install \\\n  --endpoint ${s.endpoint} \\\n  --key ${key} \\\n  --user ${user}`;
 
+const CAPTURE_LABEL = {
+  full: "Everything a machine is set to send",
+  prompts: "Prompts and answers, no tool inputs or outputs",
+  metadata: "Usage only: timings, models, tokens, tool names",
+};
+
+/** The workspace's capture level. Everyone sees it; owners can change it. It only ever narrows what machines send. */
+function captureLevel() {
+  const box = h("div", { class: "tr-capture" });
+  (async () => {
+    try {
+      const [{ capture }, me] = await Promise.all([api("tracing/settings"), api("me").catch(() => null)]);
+      const owner = me?.tenant?.role === "owner" && !me?.demo;
+      const note = h("p", { class: "small muted" }, "Enforced when traces arrive, whatever each machine is set to. Passwords, keys and tokens are always removed.");
+      if (!owner) {
+        box.append(h("p", null, "What coding tools send here: ", h("strong", null, CAPTURE_LABEL[capture] || capture), "."), note);
+        return;
+      }
+      const sel = h("select", { class: "input", "aria-label": "What coding tools send" }, Object.entries(CAPTURE_LABEL).map(([v, label]) => h("option", { value: v }, label)));
+      sel.value = capture;
+      const saved = h("span", { class: "small muted", role: "status" });
+      sel.addEventListener("change", async () => {
+        sel.disabled = true;
+        saved.textContent = "Saving…";
+        try {
+          await api("tracing/settings", { method: "PUT", body: { capture: sel.value } });
+          saved.textContent = "Saved. Machines pick it up within a day; it applies to new traces at once.";
+        } catch (err) {
+          saved.textContent = "";
+          box.append(errorBox(err));
+        } finally {
+          sel.disabled = false;
+        }
+      });
+      box.append(h("label", { class: "tr-capture-row" }, h("span", null, "What coding tools send"), sel), saved, note);
+    } catch {
+      /* the setting is informational here; the rest of the panel still works */
+    }
+  })();
+  return box;
+}
+
 /** Your own key: every turn sent with it is yours, and only you and the workspace owners can read it. */
 function personalKey(s) {
   const box = h("div", { class: "tr-mykey" });
@@ -102,6 +144,7 @@ function openSetup() {
       clear(body).append(h("div", { class: "tr-setup" },
         h("h2", { class: "tr-setup-title" }, "Claude Code and Codex"),
         h("p", null, "Each person runs this once on their machine. It adds a small script to Claude Code and Codex that sends every turn here: the prompt, the model calls with their token counts, and the tools used. It works with a subscription login as well as an API key."),
+        captureLevel(),
         personalKey(s),
         h("ul", { class: "plain-list" },
           h("li", null, "Prompts and answers are sent. Add ", h("code", null, "--no-content"), " to send only timings, tools and token counts."),

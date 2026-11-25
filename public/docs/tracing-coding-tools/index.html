@@ -84,6 +84,32 @@ node geo-trace.mjs install \
 <li><strong>Usage numbers</strong> (turns, tokens, tools on the People and Team views) are visible to everyone in the workspace.</li>
 <li>Traces from your own LLM apps, sent with a workspace key, are visible to everyone in the workspace as before.</li>
 </ul>
+<h2 id="what-a-workspace-allows"><a class="anchor" href="#what-a-workspace-allows" aria-hidden="true" tabindex="-1">#</a>What a workspace allows</h2>
+<p>An owner chooses, on the <strong>Send traces</strong> panel, what coding tools may send:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Sent</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Everything</td>
+<td>Prompts and answers, plus tool inputs and outputs from machines that opted in with <code>--tool-content</code></td>
+</tr>
+<tr>
+<td>Prompts and answers</td>
+<td>Prompts and answers; a tool step keeps its name and timing only</td>
+</tr>
+<tr>
+<td>Usage only</td>
+<td>Timings, models, token counts, tool and skill names; no text</td>
+</tr>
+</tbody></table>
+</div>
+<p>The level is enforced when traces arrive, so it holds even for a machine set to send more. Machines also read it at install and once a day, and stop sending what it excludes. It can only narrow what a machine sends, never widen it.</p>
+<p>Text that looks like a password, API key, token or private key is replaced with <code>[redacted:&lt;kind&gt;]</code>, first on the machine before sending and again on arrival.</p>
+<p>At install, the script prints what it will send, under which name, and who can read it.</p>
 <p>Revoke a key from the same panel; machines using it stop sending. A person can hold up to five keys, one per machine if they like.</p>
 <p>If a workspace key is used instead of a personal key, the name comes from <code>--user</code>, then the person&#39;s git email, then their login name. That name is self-declared, so prefer personal keys.</p>
 <p><strong>Codex asks for approval.</strong> Codex doesn&#39;t run a new hook until the person approves it: open Codex, run <code>/hooks</code>, and approve geo-trace. Until then Codex sends nothing. Claude Code needs no approval; new sessions pick the hook up.</p>
@@ -259,7 +285,7 @@ node ~/.geo-observability/geo-trace.mjs uninstall   # remove the hooks and the s
     </article>
   </main>
   <aside class="toc" aria-label="On this page">
-    <p class="toc-heading">On this page</p><ul><li><a href="#connect-a-machine">Connect a machine</a></li><li><a href="#personal-keys-and-who-sees-what">Personal keys and who sees what</a></li><li><a href="#what-is-sent">What is sent</a></li><li><a href="#bring-in-sessions-from-before-you-connected">Bring in sessions from before you connected</a></li><li><a href="#check-pause-remove">Check, pause, remove</a></li><li><a href="#it-cant-slow-or-break-a-session">It can&#39;t slow or break a session</a></li><li><a href="#roll-it-out-to-everyone">Roll it out to everyone</a></li><li><a href="#reading-the-results">Reading the results</a></li><li><a href="#limits">Limits</a></li></ul>
+    <p class="toc-heading">On this page</p><ul><li><a href="#connect-a-machine">Connect a machine</a></li><li><a href="#personal-keys-and-who-sees-what">Personal keys and who sees what</a></li><li><a href="#what-a-workspace-allows">What a workspace allows</a></li><li><a href="#what-is-sent">What is sent</a></li><li><a href="#bring-in-sessions-from-before-you-connected">Bring in sessions from before you connected</a></li><li><a href="#check-pause-remove">Check, pause, remove</a></li><li><a href="#it-cant-slow-or-break-a-session">It can&#39;t slow or break a session</a></li><li><a href="#roll-it-out-to-everyone">Roll it out to everyone</a></li><li><a href="#reading-the-results">Reading the results</a></li><li><a href="#limits">Limits</a></li></ul>
   </aside>
 </div>
 <footer class="footer"><p>GEO Observability by Organized AI</p></footer>

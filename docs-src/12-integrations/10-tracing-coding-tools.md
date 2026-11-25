@@ -42,6 +42,22 @@ Each person makes their own key. Every turn sent with it is recorded as theirs, 
 - **Usage numbers** (turns, tokens, tools on the People and Team views) are visible to everyone in the workspace.
 - Traces from your own LLM apps, sent with a workspace key, are visible to everyone in the workspace as before.
 
+## What a workspace allows
+
+An owner chooses, on the **Send traces** panel, what coding tools may send:
+
+| Level | Sent |
+| --- | --- |
+| Everything | Prompts and answers, plus tool inputs and outputs from machines that opted in with `--tool-content` |
+| Prompts and answers | Prompts and answers; a tool step keeps its name and timing only |
+| Usage only | Timings, models, token counts, tool and skill names; no text |
+
+The level is enforced when traces arrive, so it holds even for a machine set to send more. Machines also read it at install and once a day, and stop sending what it excludes. It can only narrow what a machine sends, never widen it.
+
+Text that looks like a password, API key, token or private key is replaced with `[redacted:<kind>]`, first on the machine before sending and again on arrival.
+
+At install, the script prints what it will send, under which name, and who can read it.
+
 Revoke a key from the same panel; machines using it stop sending. A person can hold up to five keys, one per machine if they like.
 
 If a workspace key is used instead of a personal key, the name comes from `--user`, then the person's git email, then their login name. That name is self-declared, so prefer personal keys.

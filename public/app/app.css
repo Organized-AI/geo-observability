@@ -445,6 +445,9 @@ mark.mark-own { background: var(--mark-own); color: inherit; border-radius: 4px;
 .tr-mykey { display: grid; gap: 10px; min-width: 0; }
 .tr-mykey > *, .tr-mykey > div > * { min-width: 0; max-width: 100%; }
 .tr-keylist li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tr-capture { display: grid; gap: 6px; min-width: 0; }
+.tr-capture-row { display: grid; gap: 4px; }
+.tr-capture select { max-width: 100%; }
 .tr-kpis.tr-kpis-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .tr-usage { min-width: 160px; }
 .tr-usage-cell { display: grid; gap: 6px; }
