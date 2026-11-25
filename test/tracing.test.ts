@@ -178,12 +178,22 @@ describe("OTLP ingest", () => {
   it("cuts oversized values and flags the span", async () => {
     const big = "x".repeat(LIMITS.attrValueChars + 500);
     await sendJson(keyA, otlpJson([{ trace: 0xd1, span: 1, name: "big", start: 0, dur: 5, attrs: { "input.value": big, "output.value": "short" } }]));
-    const row = await env.DB.prepare("SELECT input_text, output_text, attributes, truncated FROM llm_spans WHERE tenant_id = ?1 AND trace_id = ?2").bind(tenantA, hex(0xd1, 32)).first<{ input_text: string; output_text: string; attributes: string; truncated: number }>();
+    const row = await env.DB.prepare("SELECT input_text, output_text, attributes, truncated, body_key FROM llm_spans WHERE tenant_id = ?1 AND trace_id = ?2").bind(tenantA, hex(0xd1, 32)).first<{ input_text: string; output_text: string; attributes: string; truncated: number; body_key: string }>();
     expect(row!.truncated).toBe(1);
-    expect(row!.input_text.length).toBe(LIMITS.textChars);
-    expect(row!.input_text.endsWith("…[cut]")).toBe(true);
+    // A body this large lives in R2; the row keeps a short preview and no copy of the content attributes.
+    expect(row!.input_text.length).toBe(LIMITS.inlineTextChars);
     expect(row!.output_text).toBe("short");
-    expect((JSON.parse(row!.attributes)["input.value"] as string).length).toBe(LIMITS.attrValueChars);
+    expect(JSON.parse(row!.attributes)["input.value"]).toBeUndefined();
+    expect(row!.body_key.startsWith(`traces/${tenantA}/${hex(0xd1, 32)}/`)).toBe(true);
+    const body = (await (await env.ANSWERS.get(row!.body_key))!.json()) as { input: string; attributes: Record<string, string> };
+    expect(body.input.length).toBe(LIMITS.textChars);
+    expect(body.input.endsWith("…[cut]")).toBe(true);
+    expect(body.attributes["input.value"]!.length).toBe(LIMITS.attrValueChars);
+    // The span view reads the full body back.
+    const span = await call("GET", `/api/tracing/traces/${hex(0xd1, 32)}/spans/${hex(1, 16)}`, undefined, "trace-a");
+    expect(span.json.input_text.length).toBe(LIMITS.textChars);
+    expect(span.json.attributes["input.value"].length).toBe(LIMITS.attrValueChars);
+    expect(span.json.body_key).toBeUndefined();
 
     const many: Record<string, string> = {};
     for (let i = 0; i < 12; i++) many[`blob.${i}`] = "y".repeat(30_000);

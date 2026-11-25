@@ -4,6 +4,8 @@ import { Binds } from "../metrics/filters";
 import { HttpError, parseJson } from "../lib/util";
 import type { Attrs } from "./otlp";
 import { documents, messages, tools } from "./openinference";
+import { deleteBodies, readBody } from "./body";
+import type { Env } from "../env";
 
 export interface TraceFilters {
   appId?: string;
@@ -116,23 +118,26 @@ interface SpanRow {
   [k: string]: unknown;
 }
 
-export async function getSpan(tdb: TenantDB, traceId: string, spanId: string, viewer?: string) {
+export async function getSpan(tdb: TenantDB, traceId: string, spanId: string, viewer?: string, env?: Pick<Env, "ANSWERS">) {
   if (viewer) await getTrace(tdb, traceId, viewer); // 404 when the trace is someone else's
   const row = await tdb.first<SpanRow>(
     `SELECT span_id, parent_span_id, trace_id, name, kind, status_code, status_message, start_ms, end_ms, model, provider,
             prompt_tokens, completion_tokens, total_tokens, cost_micros, session_id, user_id, input_text, output_text,
-            attributes, events, truncated
+            attributes, events, truncated, body_key
      FROM llm_spans WHERE tenant_id = ?1 AND trace_id = ?2 AND span_id = ?3`,
     traceId,
     spanId,
   );
   if (!row) throw new HttpError(404, "not_found", "Span not found");
-  const attributes = parseJson<Attrs>(row.attributes, {});
+  const body = env ? await readBody(env, row.body_key as string | null, tdb.tenantId) : null;
+  const attributes = body ? body.attributes : parseJson<Attrs>(row.attributes, {});
+  const { body_key: _key, ...rest } = row;
   return {
-    ...row,
+    ...rest,
+    ...(body ? { input_text: body.input, output_text: body.output } : {}),
     truncated: row.truncated === 1,
     attributes,
-    events: parseJson<unknown[]>(row.events, []),
+    events: body ? body.events : parseJson<unknown[]>(row.events, []),
     input_messages: messages(attributes, "input"),
     output_messages: messages(attributes, "output"),
     tools: tools(attributes),
@@ -186,9 +191,13 @@ export function listPeople(tdb: TenantDB, f: Pick<TraceFilters, "appId" | "fromM
 }
 
 /** Removes an app with its traces and spans. Returns false when the app is not in this workspace. */
-export async function deleteApp(tdb: TenantDB, appId: string): Promise<boolean> {
+export async function deleteApp(tdb: TenantDB, appId: string, env?: Pick<Env, "ANSWERS">): Promise<boolean> {
   const app = await tdb.first("SELECT id FROM trace_apps WHERE tenant_id = ?1 AND id = ?2", appId);
   if (!app) return false;
+  if (env) {
+    const ids = await tdb.all<{ trace_id: string }>("SELECT DISTINCT trace_id FROM llm_spans WHERE tenant_id = ?1 AND app_id = ?2 AND body_key IS NOT NULL", appId);
+    await deleteBodies(env, tdb, ids.map((r) => r.trace_id));
+  }
   await tdb.batch([
     tdb.prepare("DELETE FROM llm_spans WHERE tenant_id = ?1 AND app_id = ?2", appId),
     tdb.prepare("DELETE FROM llm_traces WHERE tenant_id = ?1 AND app_id = ?2", appId),

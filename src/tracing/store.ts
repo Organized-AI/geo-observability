@@ -22,7 +22,30 @@ export const LIMITS = {
   attrJsonChars: 200_000, // the whole attributes blob for a span
   eventsPerSpan: 50,
   previewChars: 400,
+  inlineBytes: 8_000, // a span body (text, attributes, events) larger than this goes to R2
+  inlineTextChars: 2_000, // what the row keeps of input and output when the body is in R2
 };
+
+/** Where a span's full body lives in R2. The end time is part of the key so a later version never overwrites an earlier read. */
+export const bodyKey = (tenantId: string, traceId: string, spanId: string, endMs: number) => `traces/${tenantId}/${traceId}/${spanId}-${endMs}.json`;
+export const tracePrefix = (tenantId: string, traceId: string) => `traces/${tenantId}/${traceId}/`;
+
+// Content keys move to R2 with the body; the row keeps everything people and reports read (tool, skill, model names).
+const BODY_ONLY = /^(input\.value|output\.value|llm\.(input|output)_messages\.|llm\.prompts?\.|gen_ai\.(prompt|completion)|gen_ai\.(input|output)\.messages|retrieval\.documents\.)/;
+
+export class QuotaError extends Error {}
+
+const monthOf = (ms: number) => new Date(ms).toISOString().slice(0, 7);
+
+/** Spans left this month, or Infinity when the workspace has room to spare. */
+async function quotaLeft(tdb: TenantDB, month: string): Promise<{ left: number; limit: number }> {
+  const row = await tdb.first<{ spans: number | null; trace_span_limit: number }>(
+    "SELECT u.spans, t.trace_span_limit FROM tenants t LEFT JOIN trace_usage u ON u.tenant_id = t.id AND u.month = ?2 WHERE t.id = ?1",
+    month,
+  );
+  const limit = row?.trace_span_limit ?? 0;
+  return { left: limit - (row?.spans ?? 0), limit };
+}
 
 export const DEFAULT_APP = "default";
 const CUT = " …[cut]";
@@ -74,14 +97,14 @@ export function fitAttributes(attrs: Attrs): { json: string; truncated: boolean 
 const INSERT_SPAN = `INSERT INTO llm_spans
   (tenant_id, app_id, trace_id, span_id, parent_span_id, name, kind, status_code, status_message, start_ms, end_ms,
    model, provider, prompt_tokens, completion_tokens, total_tokens, cost_micros, session_id, user_id,
-   input_text, output_text, attributes, events, truncated)
-  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)
+   input_text, output_text, attributes, events, truncated, body_key)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)
   ON CONFLICT (tenant_id, trace_id, span_id) DO UPDATE SET
     parent_span_id = excluded.parent_span_id, name = excluded.name, kind = excluded.kind, status_code = excluded.status_code,
     status_message = excluded.status_message, start_ms = excluded.start_ms, end_ms = excluded.end_ms, model = excluded.model, provider = excluded.provider,
     prompt_tokens = excluded.prompt_tokens, completion_tokens = excluded.completion_tokens, total_tokens = excluded.total_tokens, cost_micros = excluded.cost_micros,
     session_id = excluded.session_id, user_id = excluded.user_id, input_text = excluded.input_text, output_text = excluded.output_text,
-    attributes = excluded.attributes, events = excluded.events, truncated = excluded.truncated
+    attributes = excluded.attributes, events = excluded.events, truncated = excluded.truncated, body_key = excluded.body_key
   WHERE excluded.end_ms > llm_spans.end_ms`;
 
 /**
@@ -161,11 +184,20 @@ export async function ingestSpans(env: Env, tenantId: string, spans: OtlpSpan[],
     } else good.push(s);
   }
   if (!good.length) return { accepted: 0, rejected, reason: [...reasons].join("; "), traces: 0 };
+  const month = monthOf(now);
+  const quota = await quotaLeft(tdb, month);
+  if (quota.left <= 0) throw new QuotaError(`This workspace has used its ${quota.limit.toLocaleString("en-US")} spans for ${month}. Traces resume next month, or ask for a higher limit.`);
+  if (good.length > quota.left) {
+    rejected += good.length - quota.left;
+    reasons.add("the monthly span limit was reached part way through this request");
+    good.length = quota.left;
+  }
   const capture = await getCapture(tdb);
   for (let i = 0; i < good.length; i++) good[i] = applyPolicy(good[i] as OtlpSpan, capture);
 
   const appIds = await resolveApps(tdb, new Set(good.map((s) => appNameFor(s, headerApp))));
   const stmts: D1PreparedStatement[] = [];
+  const puts: Promise<unknown>[] = [];
   const traceIds = new Set<string>();
   for (const s of good) {
     const facts = spanFacts(s.attributes);
@@ -180,6 +212,23 @@ export async function ingestSpans(env: Env, tenantId: string, spans: OtlpSpan[],
     if (eventsJson.length > LIMITS.attrJsonChars) {
       eventsJson = JSON.stringify(events.map((e) => ({ name: e.name, time_ms: e.time_ms, attributes: {} })));
       truncated = true;
+    }
+    // Large bodies go to R2 whole; the row keeps a preview and the names reports read.
+    let rowInput = input;
+    let rowOutput = output;
+    let rowAttrs = attrs.json;
+    let rowEvents = eventsJson;
+    let key: string | null = null;
+    const bodySize = (input?.length ?? 0) + (output?.length ?? 0) + attrs.json.length + eventsJson.length;
+    if (bodySize > LIMITS.inlineBytes && env.ANSWERS) {
+      key = bodyKey(tenantId, s.traceId, s.spanId, endMs);
+      puts.push(env.ANSWERS.put(key, JSON.stringify({ input, output, attributes: JSON.parse(attrs.json), events: JSON.parse(eventsJson) }), { httpMetadata: { contentType: "application/json" } }));
+      rowInput = cut(input, LIMITS.inlineTextChars);
+      rowOutput = cut(output, LIMITS.inlineTextChars);
+      const slim = JSON.parse(attrs.json) as Attrs;
+      for (const k of Object.keys(slim)) if (BODY_ONLY.test(k)) delete slim[k];
+      rowAttrs = JSON.stringify(slim);
+      rowEvents = "[]";
     }
     traceIds.add(s.traceId);
     stmts.push(
@@ -203,17 +252,26 @@ export async function ingestSpans(env: Env, tenantId: string, spans: OtlpSpan[],
         facts.costMicros,
         cut(facts.sessionId, 200),
         person ?? cut(facts.userId, 200),
-        input,
-        output,
-        attrs.json,
-        eventsJson,
+        rowInput,
+        rowOutput,
+        rowAttrs,
+        rowEvents,
         truncated ? 1 : 0,
+        key,
       ),
     );
   }
   // An app whose spans say which coding tool sent them is a coding tool; its people are counted as people.
   const coding = new Set(good.filter((s) => typeof s.attributes["harness.name"] === "string").map((s) => appIds.get(appNameFor(s, headerApp)) as string));
   if (coding.size) stmts.push(...[...coding].map((id) => tdb.prepare("UPDATE trace_apps SET kind = 'coding_tool' WHERE tenant_id = ?1 AND id = ?2 AND kind <> 'coding_tool'", id)));
+  await Promise.all(puts); // bodies first, so a row never points at a missing object
+  stmts.push(
+    tdb.prepare(
+      "INSERT INTO trace_usage (tenant_id, month, spans) VALUES (?1, ?2, ?3) ON CONFLICT (tenant_id, month) DO UPDATE SET spans = trace_usage.spans + excluded.spans",
+      month,
+      good.length,
+    ),
+  );
   for (const part of chunk(stmts, 40)) await tdb.batch(part);
   for (const part of chunk([...traceIds], 40)) await tdb.batch(part.map((id) => tdb.prepare(SUMMARISE, id)));
   const seen = nowIso();

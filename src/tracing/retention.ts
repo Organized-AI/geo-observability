@@ -5,6 +5,7 @@
 import type { Env } from "../env";
 import { TenantDB } from "../lib/db";
 import { chunk } from "../lib/util";
+import { deleteBodies } from "./body";
 
 export const DEFAULT_RETENTION_DAYS = 92;
 const DAY_MS = 86_400_000;
@@ -17,13 +18,14 @@ export function retentionDays(env: Pick<Env, "TRACE_RETENTION_DAYS">): number {
 export const cutoffMs = (env: Pick<Env, "TRACE_RETENTION_DAYS">, now = Date.now()) => now - retentionDays(env) * DAY_MS;
 
 /** Deletes up to `maxTraces` expired traces of one workspace, oldest first. Returns how many traces went. */
-export async function pruneTenant(tdb: TenantDB, cutoff: number, maxTraces = 2000): Promise<number> {
+export async function pruneTenant(tdb: TenantDB, cutoff: number, maxTraces = 2000, env?: Pick<Env, "ANSWERS">): Promise<number> {
   let removed = 0;
   while (removed < maxTraces) {
     const rows = await tdb.all<{ trace_id: string }>("SELECT trace_id FROM llm_traces WHERE tenant_id = ?1 AND start_ms < ?2 ORDER BY start_ms LIMIT 400", cutoff);
     if (!rows.length) break;
     for (const ids of chunk(rows.map((r) => r.trace_id), 40)) {
       const marks = ids.map((_, i) => `?${i + 2}`).join(", ");
+      if (env) await deleteBodies(env, tdb, ids);
       await tdb.batch([
         tdb.prepare(`DELETE FROM llm_spans WHERE tenant_id = ?1 AND trace_id IN (${marks})`, ...ids),
         tdb.prepare(`DELETE FROM llm_traces WHERE tenant_id = ?1 AND trace_id IN (${marks})`, ...ids),
@@ -43,7 +45,7 @@ export async function pruneTraces(env: Env, now = new Date()): Promise<number> {
   let removed = 0;
   for (const t of tenants.results ?? []) {
     try {
-      removed += await pruneTenant(new TenantDB(env.DB, t.tenant_id), cutoff);
+      removed += await pruneTenant(new TenantDB(env.DB, t.tenant_id), cutoff, 2000, env);
     } catch (err) {
       console.error("trace_prune_failed", t.tenant_id, String(err));
     }

@@ -59,3 +59,8 @@ The files contain whatever your apps and tools sent, including prompts and answe
 ## Removing traces sooner
 
 An owner can delete an app with all of its traces through the API (`DELETE /api/tracing/apps/<app id>`). There's no button for this in the portal yet.
+
+## Monthly allowance
+
+Each workspace can store 2,000,000 spans a month (a coding-tool turn is usually 10 to 30 spans). The footer under **Traces** shows this month's use; a notice appears at 80%. Past the allowance, new traces are refused until the next month and senders keep them to retry. Ask for a higher allowance if you need one.
+

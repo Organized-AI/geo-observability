@@ -10,6 +10,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - A workspace capture level for coding tools (everything, prompts and answers, or usage only), set by an owner and enforced when traces arrive.
 - Secrets (API keys, tokens, passwords, private keys) are replaced before a turn leaves the machine and again on arrival.
 - The installer prints what it will send, under which name, and who can read it.
+- A monthly span allowance per workspace (2,000,000 by default), shown under Traces with a warning at 80%. Past it, new traces are refused with 429 until the next month.
+- Large span bodies are kept in R2, so the database holds short previews; the span view and exports still show everything.
 
 ### Changed
 

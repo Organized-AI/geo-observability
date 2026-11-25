@@ -83,7 +83,7 @@ tracingApi.get("/traces/:traceId/spans/:spanId", async (c) => {
   const traceId = c.req.param("traceId").toLowerCase();
   const spanId = c.req.param("spanId").toLowerCase();
   if (!TRACE_ID.test(traceId) || !SPAN_ID.test(spanId)) throw new HttpError(404, "not_found", "Span not found");
-  return c.json(await getSpan(c.get("session").tdb, traceId, spanId, viewerFor(c.get("session"))));
+  return c.json(await getSpan(c.get("session").tdb, traceId, spanId, viewerFor(c.get("session")), c.env));
 });
 
 tracingApi.get("/sessions", async (c) => {
@@ -149,6 +149,16 @@ tracingApi.get("/setup", (c) => {
 
 tracingApi.get("/retention", async (c) => c.json(await retentionStatus(c.get("session").tdb, c.env)));
 
+/** Spans used this month against the workspace's allowance. */
+tracingApi.get("/usage", async (c) => {
+  const month = new Date().toISOString().slice(0, 7);
+  const row = await c.get("session").tdb.first<{ spans: number | null; bytes: number | null; trace_span_limit: number }>(
+    "SELECT u.spans, u.bytes, t.trace_span_limit FROM tenants t LEFT JOIN trace_usage u ON u.tenant_id = t.id AND u.month = ?2 WHERE t.id = ?1",
+    month,
+  );
+  return c.json({ month, spans: row?.spans ?? 0, bytes: row?.bytes ?? 0, limit: row?.trace_span_limit ?? 0 });
+});
+
 // ------------------------------------------------------------------ exports (keep a local copy)
 
 const stamp = () => new Date().toISOString().slice(0, 10);
@@ -162,7 +172,7 @@ tracingApi.get("/export/traces.csv", async (c) => {
 
 tracingApi.get("/export/traces.jsonl", (c) => {
   const f = filtersFrom(new URL(c.req.url).searchParams);
-  return new Response(tracesJsonl(c.get("session").tdb, { ...f, cursor: undefined, viewer: viewerFor(c.get("session")) }), { headers: download(`traces-${stamp()}.jsonl`, "application/x-ndjson; charset=utf-8") });
+  return new Response(tracesJsonl(c.get("session").tdb, { ...f, cursor: undefined, viewer: viewerFor(c.get("session")) }, c.env), { headers: download(`traces-${stamp()}.jsonl`, "application/x-ndjson; charset=utf-8") });
 });
 
 tracingApi.get("/export/people.csv", async (c) => {
@@ -241,7 +251,7 @@ tracingApi.delete("/apps/:id", async (c) => {
   requireWrite(s);
   requireOwner(s);
   const id = c.req.param("id");
-  if (!(await deleteApp(s.tdb, id))) throw new HttpError(404, "not_found", "App not found");
+  if (!(await deleteApp(s.tdb, id, c.env))) throw new HttpError(404, "not_found", "App not found");
   await s.tdb.run("INSERT INTO audit_log (id, tenant_id, user_email, action, detail) VALUES (?2, ?1, ?3, 'trace_app.delete', ?4)", newId("aud"), s.email, JSON.stringify({ id }));
   return c.json({ ok: true });
 });

@@ -15,7 +15,7 @@ import { billingApi, signupApi, stripeWebhook } from "./routes/billing";
 import { authApp } from "./routes/auth";
 import { serveWithBase } from "./lib/basepath";
 import { exportResponse, readExport } from "./tracing/otlp";
-import { ingestSpans } from "./tracing/store";
+import { ingestSpans, QuotaError } from "./tracing/store";
 import { pruneTraces } from "./tracing/retention";
 import { generateDailyReports } from "./tracing/people";
 
@@ -102,8 +102,20 @@ app.post("/ingest/otlp/v1/traces", async (c) => {
   const secret = c.req.header("x-ingest-key") ?? (/^Bearer\s+/i.test(auth) ? auth.replace(/^Bearer\s+/i, "").trim() : null);
   const key = await resolveKey(c.env, secret, ["ingest"]);
   await rateLimit(c.env, key.keyId, 600);
+  const bytes = Number(c.req.header("content-length") ?? 0) || 0;
   const { spans, encoding } = await readExport(c.req.raw);
-  const res = await ingestSpans(c.env, key.tenantId, spans, c.req.header("x-project-name") ?? null, key.person);
+  let res;
+  try {
+    res = await ingestSpans(c.env, key.tenantId, spans, c.req.header("x-project-name") ?? null, key.person);
+  } catch (err) {
+    if (err instanceof QuotaError) return c.json({ error: "quota_exceeded", message: err.message }, 429, { "retry-after": "3600" });
+    throw err;
+  }
+  if (bytes && res.accepted) {
+    await new TenantDB(c.env.DB, key.tenantId)
+      .run("UPDATE trace_usage SET bytes = bytes + ?3 WHERE tenant_id = ?1 AND month = ?2", new Date().toISOString().slice(0, 7), bytes)
+      .catch(() => undefined);
+  }
   return exportResponse(encoding, res.rejected, res.reason);
 });
 

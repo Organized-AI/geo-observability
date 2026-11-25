@@ -240,6 +240,15 @@ async function traceList(ctx) {
         h("span", null, `${plural(r.expiring_in_14_days, "trace")} from before ${fmt.dateLong(new Date(r.expiring_before_ms).toISOString().slice(0, 10))} will be deleted within 14 days. Export them first if you want to keep a copy.`)), body);
     }
     keep.textContent = `Traces are kept for ${r.days} days (one quarter), then deleted. Use Export to save a copy on your computer.`;
+    return api("tracing/usage").then((u) => {
+      if (!ctx.alive() || !u || !u.limit) return;
+      const share = u.spans / u.limit;
+      keep.textContent += ` This month: ${fmt.int(u.spans)} of ${fmt.int(u.limit)} spans.`;
+      if (share >= 0.8) {
+        box.insertBefore(h("p", { class: `notice ${share >= 1 ? "notice-error" : "notice-warn"}` }, icon("alert"),
+          h("span", null, share >= 1 ? "This workspace has used this month's spans. New traces are refused until next month." : `This workspace has used ${Math.round(share * 100)}% of this month's spans.`)), body);
+      }
+    });
   }).catch(() => {});
   if (tab === "sessions") return sessionList(ctx, body, app);
   if (tab === "people") return peopleList(ctx, body, app);

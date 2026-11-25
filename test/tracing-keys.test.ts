@@ -228,3 +228,36 @@ describe("capture level and redaction", () => {
     expect(row.attributes).not.toContain("sk-ant-api03");
   });
 });
+
+describe("capacity: R2 bodies and the monthly quota", () => {
+  let key = "";
+  const T_BIG = "a".repeat(32);
+
+  beforeAll(async () => {
+    key = (await call("POST", "/api/keys", { name: "cap", scope: "ingest" })).json.secret;
+  });
+
+  it("deletes a trace's R2 body when the trace expires", async () => {
+    const { pruneTenant } = await import("../src/tracing/retention");
+    const { TenantDB } = await import("../src/lib/db");
+    expect((await send(key, turn(T_BIG, "u", "z".repeat(12_000), false))).status).toBe(200);
+    const row = await env.DB.prepare("SELECT body_key FROM llm_spans WHERE tenant_id = ?1 AND trace_id = ?2").bind(tenantId, T_BIG).first<{ body_key: string }>();
+    expect(await env.ANSWERS.head(row!.body_key)).not.toBeNull();
+    await pruneTenant(new TenantDB(env.DB, tenantId), Date.now() + 1000, 2000, env);
+    expect(await env.ANSWERS.head(row!.body_key)).toBeNull();
+    expect(await env.DB.prepare("SELECT 1 FROM llm_spans WHERE tenant_id = ?1 AND trace_id = ?2").bind(tenantId, T_BIG).first()).toBeNull();
+  });
+
+  it("counts spans per month and refuses them past the limit", async () => {
+    const usage = (await call("GET", "/api/tracing/usage")).json;
+    expect(usage.limit).toBe(2_000_000);
+    expect(usage.spans).toBeGreaterThan(0);
+    expect(usage.bytes).toBeGreaterThan(0);
+    await env.DB.prepare("UPDATE tenants SET trace_span_limit = ?2 WHERE id = ?1").bind(tenantId, usage.spans + 1).run();
+    expect((await send(key, turn("b".repeat(32), "u", "last one", false))).status).toBe(200);
+    const res = await send(key, turn("c".repeat(32), "u", "over", false));
+    expect(res.status).toBe(429);
+    expect(((await res.json()) as { error: string }).error).toBe("quota_exceeded");
+    await env.DB.prepare("UPDATE tenants SET trace_span_limit = 2000000 WHERE id = ?1").bind(tenantId).run();
+  });
+});

@@ -1,4 +1,6 @@
 /** Exports for keeping a local copy: a CSV summary, and full traces with every span as JSON Lines. */
+import { readBody } from "./body";
+import type { Env } from "../env";
 import type { TenantDB } from "../lib/db";
 import { parseJson, toCsv } from "../lib/util";
 import { listPeople, listTraces, type TraceFilters } from "./query";
@@ -52,7 +54,7 @@ interface SpanRow {
  * Full traces as JSON Lines: one trace per line with all of its spans, attributes and events.
  * Streamed a page at a time so a large export never sits in memory.
  */
-export function tracesJsonl(tdb: TenantDB, f: TraceFilters): ReadableStream<Uint8Array> {
+export function tracesJsonl(tdb: TenantDB, f: TraceFilters, env?: Pick<Env, "ANSWERS">): ReadableStream<Uint8Array> {
   const enc = new TextEncoder();
   let cursor: string | undefined;
   let sent = 0;
@@ -71,14 +73,15 @@ export function tracesJsonl(tdb: TenantDB, f: TraceFilters): ReadableStream<Uint
           const marks = traces.map((_, i) => `?${i + 2}`).join(", ");
           const spans = await tdb.all<SpanRow>(
             `SELECT trace_id, span_id, parent_span_id, name, kind, status_code, status_message, start_ms, end_ms, model, provider,
-                    prompt_tokens, completion_tokens, total_tokens, cost_micros, session_id, user_id, attributes, events, truncated
+                    prompt_tokens, completion_tokens, total_tokens, cost_micros, session_id, user_id, attributes, events, truncated, body_key
              FROM llm_spans WHERE tenant_id = ?1 AND trace_id IN (${marks}) ORDER BY trace_id, start_ms, span_id`,
             ...traces.map((t) => t.trace_id),
           );
           for (const s of spans) {
-            const { trace_id, attributes, events, truncated, ...rest } = s;
+            const { trace_id, attributes, events, truncated, body_key, ...rest } = s;
+            const body = env ? await readBody(env, body_key as string | null, tdb.tenantId) : null;
             const list = spansByTrace.get(trace_id) ?? [];
-            list.push({ ...rest, truncated: truncated === 1, attributes: parseJson(attributes, {}), events: parseJson(events, []) });
+            list.push({ ...rest, truncated: truncated === 1, attributes: body ? body.attributes : parseJson(attributes, {}), events: body ? body.events : parseJson(events, []), ...(body ? { input_text: body.input, output_text: body.output } : {}) });
             spansByTrace.set(trace_id, list);
           }
         }

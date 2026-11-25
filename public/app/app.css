@@ -165,6 +165,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent-text); 
 .notice .icon { color: var(--accent-text); margin-top: 2px; }
 .notice-warn { background: var(--warn-soft); color: var(--text); }
 .notice-warn .icon { color: var(--warn); }
+.notice-error { background: var(--neg-soft, var(--warn-soft)); color: var(--text); }
+.notice-error .icon { color: var(--neg); }
 .menu { position: relative; }
 .menu > summary { list-style: none; }
 .menu > summary::-webkit-details-marker { display: none; }
