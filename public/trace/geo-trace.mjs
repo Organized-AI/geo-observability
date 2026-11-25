@@ -5,6 +5,8 @@
  *   node geo-trace.mjs install --endpoint <url> --key <ingest key> [--user you@company.com] [--tools claude,codex]
  *                              [--no-content] [--tool-content]
  *   node geo-trace.mjs status | test | uninstall | print-managed <claude|codex>
+ *   node geo-trace.mjs configure --endpoint <url> --key-file <path>   (managed rollouts: config only, hooks come from managed settings)
+ *   node geo-trace.mjs set-key <key> | --key-file <path>              (rotate the key, keep everything else)
  *   node geo-trace.mjs import [--days 30] [--tools claude,codex] [--dry-run]
  *   node geo-trace.mjs hook <claude|codex>        (run by the tools; reads one hook event on stdin)
  *
@@ -800,10 +802,31 @@ function testTurn(cfg) {
   ]);
 }
 
+/** A key kept in a file (for MDM and scripts), so it never appears in a command line or shell history. */
+function readKeyFile(path) {
+  if (!path) return "";
+  try { return readFileSync(String(path), "utf8").trim(); } catch { throw new Error(`Could not read the key file ${path}`); }
+}
+
+async function setKey(a, say) {
+  const cfg = loadConfig();
+  if (!cfg) throw new Error("Not installed. Run install (or configure) first.");
+  const key = String(a._[0] || readKeyFile(a["key-file"]) || "").trim();
+  if (key.length < 20) throw new Error("Give the new key: set-key <key> or set-key --key-file <path>");
+  const raw = JSON.parse(readFileSync(join(dataDir(), "config.json"), "utf8"));
+  raw.key = key;
+  const policy = await fetchPolicy({ ...cfg, key });
+  if (policy) Object.assign(raw, { workspace_capture: policy.capture, policy_at: Date.now() });
+  writePrivate(join(dataDir(), "config.json"), `${JSON.stringify(raw, null, 2)}\n`);
+  const status = await post({ ...cfg, key }, toOtlp(testTurn({ ...cfg, key }))).catch(() => 0);
+  say(status >= 200 && status < 300 ? `Key replaced${policy?.person ? ` (sending as ${policy.person})` : ""}. A test turn was accepted.` : `Key saved, but the test turn was not accepted (${status === 0 ? "server not reached" : `status ${status}`}).`);
+  return status >= 200 && status < 300 ? 0 : 1;
+}
+
 async function install(a, say) {
   const prev = loadConfig() || {};
   const endpoint = String(a.endpoint || prev.endpoint || "").trim();
-  const key = String(a.key || process.env.GEO_TRACE_KEY || prev.key || "").trim();
+  const key = String(a.key || readKeyFile(a["key-file"]) || process.env.GEO_TRACE_KEY || prev.key || "").trim();
   if (!/^https?:\/\//.test(endpoint)) throw new Error("Give the endpoint from the Traces page: --endpoint https://<host>/ingest/otlp");
   if (key.length < 20) throw new Error("Give an ingest key from Usage & API: --key <ingest key>");
   if (endpoint.startsWith("http://") && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\]|100\.\d+\.\d+\.\d+|[a-z0-9-]+)(:\d+)?(\/|$)/i.test(endpoint)) throw new Error("Use an https:// endpoint. Plain http is only accepted for a local or private-network address.");
@@ -821,7 +844,7 @@ async function install(a, say) {
   writePrivate(join(dataDir(), "config.json"), `${JSON.stringify(cfg, null, 2)}\n`);
   const sent = narrow(cfg.capture, cfg.workspace_capture);
 
-  const want = String(a.tools || "claude,codex").split(",").map((s) => s.trim()).filter((s) => TARGETS[s]);
+  const want = a["no-hooks"] ? [] : String(a.tools || "claude,codex").split(",").map((s) => s.trim()).filter((s) => TARGETS[s]);
   const done = [];
   for (const name of want) {
     const t = TARGETS[name];
@@ -899,6 +922,8 @@ async function main(argv) {
   const a = args(rest);
   try {
     if (cmd === "install") await install(a, say);
+    else if (cmd === "configure") await install({ ...a, "no-hooks": true }, say);
+    else if (cmd === "set-key") return await setKey(a, say);
     else if (cmd === "uninstall") uninstall(say);
     else if (cmd === "status") status(say);
     else if (cmd === "test") {
@@ -910,7 +935,7 @@ async function main(argv) {
     } else if (cmd === "import") return await importHistory(a, say);
     else if (cmd === "print-managed") say(managedSnippet(a._[0]));
     else {
-      say("geo-trace: send Claude Code and Codex sessions to GEO Observability\n\n  install --endpoint <url> --key <ingest key> [--user <email>] [--tools claude,codex] [--no-content] [--tool-content]\n  status\n  test\n  import [--days 30] [--tools claude,codex] [--dry-run]   send sessions already on this machine\n  uninstall\n  print-managed <claude|codex>");
+      say("geo-trace: send Claude Code and Codex sessions to GEO Observability\n\n  install --endpoint <url> --key <ingest key> [--user <email>] [--tools claude,codex] [--no-content] [--tool-content]\n  configure --endpoint <url> --key-file <path> [--user <email>]   config only, for managed hooks\n  set-key <key> | --key-file <path>   replace the key\n  status\n  test\n  import [--days 30] [--tools claude,codex] [--dry-run]   send sessions already on this machine\n  uninstall\n  print-managed <claude|codex>");
       return cmd ? 1 : 0;
     }
     return 0;

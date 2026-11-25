@@ -583,3 +583,38 @@ test("a workspace level only narrows what a machine sends", async () => {
   assert.equal(policyUrl("https://h/ingest/otlp/"), "https://h/ingest/otlp/policy");
   assert.equal(policyUrl("https://h/ingest/otlp/v1/traces"), "https://h/ingest/otlp/policy");
 });
+
+test("configure writes only the config (for managed hooks), and set-key replaces the key", async () => {
+  await withServer(async ({ got, home, endpoint }) => {
+    rmSync(join(home, "config.json"));
+    const claude = join(home, "dot-claude");
+    mkdirSync(claude);
+    const env = { ...process.env, GEO_TRACE_HOME: join(home, "data"), CLAUDE_CONFIG_DIR: claude, CODEX_HOME: join(home, "dot-codex") };
+    const runAsync = (...a) => new Promise((resolve) => {
+      const child = spawn(process.execPath, [SCRIPT, ...a], { env });
+      let out = "";
+      child.stdout.on("data", (c) => { out += c; });
+      child.stderr.on("data", (c) => { out += c; });
+      child.on("close", (code) => resolve({ code, out }));
+    });
+    const keyFile = join(home, "key.txt");
+    writeFileSync(keyFile, "geo_first_key_0123456789abcdef\n");
+    const conf = await runAsync("configure", "--endpoint", endpoint, "--key-file", keyFile, "--user", "ada@example.com");
+    assert.equal(conf.code, 0, conf.out);
+    assert.match(conf.out, /What this machine sends/);
+    assert.ok(!existsSync(join(claude, "settings.json")), "configure leaves tool settings alone");
+    assert.equal(JSON.parse(readFileSync(join(home, "data", "config.json"), "utf8")).key, "geo_first_key_0123456789abcdef");
+
+    writeFileSync(keyFile, "geo_second_key_0123456789abcdef\n");
+    const before = got.length;
+    const rot = await runAsync("set-key", "--key-file", keyFile);
+    assert.equal(rot.code, 0, rot.out);
+    assert.match(rot.out, /Key replaced/);
+    const cfg = JSON.parse(readFileSync(join(home, "data", "config.json"), "utf8"));
+    assert.equal(cfg.key, "geo_second_key_0123456789abcdef");
+    assert.equal(cfg.user, "ada@example.com");
+    assert.equal(got.length, before + 1);
+    assert.equal(got.at(-1).key, "geo_second_key_0123456789abcdef");
+    assert.equal((await runAsync("set-key", "short")).code, 1);
+  });
+});

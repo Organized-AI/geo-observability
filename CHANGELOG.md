@@ -12,6 +12,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - The installer prints what it will send, under which name, and who can read it.
 - A monthly span allowance per workspace (2,000,000 by default), shown under Traces with a warning at 80%. Past it, new traces are refused with 429 until the next month.
 - Large span bodies are kept in R2, so the database holds short previews; the span view and exports still show everything.
+- Team rollout: owners download personal keys for many people at once (CSV), `geo-trace.mjs configure` sets a machine up for managed hooks from a key file, and `set-key` replaces a key in place.
 
 ### Changed
 

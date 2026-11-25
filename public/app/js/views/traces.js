@@ -79,11 +79,42 @@ function captureLevel() {
         }
       });
       box.append(h("label", { class: "tr-capture-row" }, h("span", null, "What coding tools send"), sel), saved, note);
+      box.append(teamKeys());
     } catch {
       /* the setting is informational here; the rest of the panel still works */
     }
   })();
   return box;
+}
+
+/** Owners: one personal key per person for a managed rollout, downloaded once as CSV. */
+function teamKeys() {
+  const list = h("textarea", { class: "input", rows: 3, placeholder: "ada@company.com, grace@company.com", "aria-label": "Email addresses" });
+  const go = h("button", { type: "button", class: "btn btn-sm" }, "Download keys (CSV)");
+  const msg = h("span", { class: "small muted", role: "status" });
+  go.addEventListener("click", async () => {
+    if (!list.value.trim()) return list.focus();
+    go.disabled = true;
+    msg.textContent = "Making keys…";
+    try {
+      const csv = await api("tracing/keys/bulk", { method: "POST", body: { people: list.value } });
+      const a = h("a", { href: URL.createObjectURL(new Blob([csv], { type: "text/csv" })), download: `trace-keys-${new Date().toISOString().slice(0, 10)}.csv` });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      msg.textContent = `${plural(String(csv).trim().split("\n").length - 1, "row")} downloaded. The keys are not shown again: hand each to its person, or to your device management tool.`;
+      list.value = "";
+    } catch {
+      msg.textContent = "";
+    } finally {
+      go.disabled = false;
+    }
+  });
+  return h("details", { class: "tr-teamkeys" },
+    h("summary", null, "Keys for your team"),
+    h("p", { class: "small" }, "One personal key per person, for rolling out with managed settings. Paste email addresses; you get a CSV of person and key."),
+    list, h("div", { class: "tr-teamkeys-row" }, go, msg));
 }
 
 /** Your own key: every turn sent with it is yours, and only you and the workspace owners can read it. */

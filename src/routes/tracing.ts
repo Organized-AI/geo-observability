@@ -235,6 +235,38 @@ tracingApi.post("/keys", async (c) => {
   return c.json({ id, secret: k.secret, prefix: k.prefix, person, name }, 201);
 });
 
+/**
+ * An owner makes one personal key per person for a managed rollout and downloads them as CSV (person,key).
+ * The secrets exist only in that download. People already at their key limit are listed with an empty key.
+ */
+tracingApi.post("/keys/bulk", async (c) => {
+  const s = c.get("session");
+  requireWrite(s);
+  requireOwner(s);
+  const b = (await c.req.json().catch(() => ({}))) as { people?: unknown };
+  const raw = Array.isArray(b.people) ? b.people : typeof b.people === "string" ? b.people.split(/[\s,;]+/) : [];
+  const people = [...new Set(raw.map((p) => normalizeEmail(p)).filter((p): p is string => !!p))];
+  if (!people.length) throw new HttpError(400, "bad_request", "people must list email addresses");
+  if (people.length > 500) throw new HttpError(400, "bad_request", "At most 500 people at a time");
+  const counts = new Map(
+    (await s.tdb.all<{ person: string; n: number }>("SELECT person, COUNT(*) AS n FROM api_keys WHERE tenant_id = ?1 AND person IS NOT NULL AND revoked_at IS NULL GROUP BY person")).map((r) => [r.person, r.n]),
+  );
+  const lines = ["person,key,note"];
+  const stmts = [];
+  for (const person of people) {
+    if ((counts.get(person) ?? 0) >= PERSONAL_KEYS_PER_PERSON) {
+      lines.push(`${person},,already has ${PERSONAL_KEYS_PER_PERSON} keys`);
+      continue;
+    }
+    const k = await newApiKey();
+    stmts.push(s.tdb.prepare("INSERT INTO api_keys (id, tenant_id, name, key_hash, prefix, scope, person) VALUES (?2, ?1, ?3, ?4, ?5, 'ingest', ?6)", newId("key"), "Coding tools (rollout)", k.hash, k.prefix, person));
+    lines.push(`${person},${k.secret},`);
+  }
+  for (let i = 0; i < stmts.length; i += 50) await s.tdb.batch(stmts.slice(i, i + 50));
+  await s.tdb.run("INSERT INTO audit_log (id, tenant_id, user_email, action, detail) VALUES (?2, ?1, ?3, 'trace_key.bulk_create', ?4)", newId("aud"), s.email, JSON.stringify({ people: people.length, created: stmts.length }));
+  return new Response(`${lines.join("\n")}\n`, { headers: { ...download(`trace-keys-${stamp()}.csv`, "text/csv; charset=utf-8"), "cache-control": "no-store" } });
+});
+
 tracingApi.delete("/keys/:id", async (c) => {
   const s = c.get("session");
   if (s.demo) throw new HttpError(403, "read_only", "The demo is read-only.");

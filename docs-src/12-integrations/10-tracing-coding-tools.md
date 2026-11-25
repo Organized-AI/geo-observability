@@ -134,7 +134,28 @@ An administrator can set the hooks for every machine, so nobody has to run the i
 - **Claude Code**: put the hooks in managed settings (`/Library/Application Support/ClaudeCode/managed-settings.json` on macOS, `/etc/claude-code/managed-settings.json` on Linux).
 - **Codex**: put the hooks in `/etc/codex/hooks.json` or in `requirements.toml`. Managed hooks don't need each person's approval.
 
-`node geo-trace.mjs print-managed claude` and `print-managed codex` print the hooks block to paste in. The script and its `config.json` still have to be placed on each machine, for example with your device management tool.
+`node geo-trace.mjs print-managed claude` and `print-managed codex` print the hooks block to paste in. It runs the script from `/usr/local/lib/geo-trace/geo-trace.mjs`.
+
+Step by step, with your device management tool:
+
+1. **Make the keys.** On **Send traces**, open **Keys for your team**, paste everyone's email addresses and download the CSV. Each row is a person and their personal key. The keys are shown only in that file.
+2. **Place the script** at `/usr/local/lib/geo-trace/geo-trace.mjs` on every machine.
+3. **Place the managed hooks** from `print-managed` for Claude Code and Codex.
+4. **Give each person their key**, as each user, without putting it on a command line:
+
+   ```bash
+   node /usr/local/lib/geo-trace/geo-trace.mjs configure \
+     --endpoint https://<your-host>/ingest/otlp \
+     --key-file /path/to/this-persons-key.txt
+   ```
+
+   `configure` writes only the person's settings (`~/.geo-observability/config.json`) and sends a test turn. It doesn't touch Claude Code or Codex settings, because the managed hooks already cover them. Delete the key file afterwards.
+
+## Keys over time
+
+- **Replace a key** (a laptop is lost, or you rotate keys on a schedule): make a new key, then on that machine run `node ~/.geo-observability/geo-trace.mjs set-key --key-file <path>` (or with managed hooks, the script under `/usr/local/lib/geo-trace/`). It keeps every other setting and sends a test turn. Then revoke the old key under **Send traces**.
+- **Someone leaves**: revoke their keys. Their machine stops being able to send at once; their past traces stay until the retention window ends, or delete them with the app.
+- **Remove it from a machine**: `uninstall` removes our hooks and the saved settings and leaves every other hook as it was. Managed hooks are removed by taking them out of managed settings.
 
 ## Reading the results
 

@@ -261,3 +261,27 @@ describe("capacity: R2 bodies and the monthly quota", () => {
     await env.DB.prepare("UPDATE tenants SET trace_span_limit = 2000000 WHERE id = ?1").bind(tenantId).run();
   });
 });
+
+describe("team rollout", () => {
+  it("lets an owner make keys for many people at once, as a CSV only they download", async () => {
+    expect((await call("POST", "/api/tracing/keys/bulk", { people: ["a@keys.test"] }, samCookie)).status).toBe(403);
+    const res = await SELF.fetch("https://geo.test/api/tracing/keys/bulk", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-tenant": SLUG },
+      body: JSON.stringify({ people: "New1@keys.test, new2@keys.test\nnot-an-email new1@keys.test" }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toContain("trace-keys-");
+    const rows = (await res.text()).trim().split("\n").slice(1).map((l) => l.split(","));
+    expect(rows.map((r) => r[0])).toEqual(["new1@keys.test", "new2@keys.test"]);
+    const secret = rows[0]![1]!;
+    const policy = await SELF.fetch("https://geo.test/ingest/otlp/policy", { headers: { "x-ingest-key": secret } });
+    expect(((await policy.json()) as { person: string }).person).toBe("new1@keys.test");
+  });
+
+  it("skips people already at their key limit", async () => {
+    for (let i = 0; i < 5; i++) await call("POST", "/api/tracing/keys", { person: "full@keys.test" });
+    const res = await call("POST", "/api/tracing/keys/bulk", { people: ["full@keys.test"] });
+    expect(String(res.json)).toContain("full@keys.test,,already has 5 keys");
+  });
+});

@@ -226,7 +226,29 @@ node ~/.geo-observability/geo-trace.mjs uninstall   # remove the hooks and the s
 <li><strong>Claude Code</strong>: put the hooks in managed settings (<code>/Library/Application Support/ClaudeCode/managed-settings.json</code> on macOS, <code>/etc/claude-code/managed-settings.json</code> on Linux).</li>
 <li><strong>Codex</strong>: put the hooks in <code>/etc/codex/hooks.json</code> or in <code>requirements.toml</code>. Managed hooks don&#39;t need each person&#39;s approval.</li>
 </ul>
-<p><code>node geo-trace.mjs print-managed claude</code> and <code>print-managed codex</code> print the hooks block to paste in. The script and its <code>config.json</code> still have to be placed on each machine, for example with your device management tool.</p>
+<p><code>node geo-trace.mjs print-managed claude</code> and <code>print-managed codex</code> print the hooks block to paste in. It runs the script from <code>/usr/local/lib/geo-trace/geo-trace.mjs</code>.</p>
+<p>Step by step, with your device management tool:</p>
+<ol>
+<li><p><strong>Make the keys.</strong> On <strong>Send traces</strong>, open <strong>Keys for your team</strong>, paste everyone&#39;s email addresses and download the CSV. Each row is a person and their personal key. The keys are shown only in that file.</p>
+</li>
+<li><p><strong>Place the script</strong> at <code>/usr/local/lib/geo-trace/geo-trace.mjs</code> on every machine.</p>
+</li>
+<li><p><strong>Place the managed hooks</strong> from <code>print-managed</code> for Claude Code and Codex.</p>
+</li>
+<li><p><strong>Give each person their key</strong>, as each user, without putting it on a command line:</p>
+<pre><code class="language-bash">node /usr/local/lib/geo-trace/geo-trace.mjs configure \
+  --endpoint https://&lt;your-host&gt;/ingest/otlp \
+  --key-file /path/to/this-persons-key.txt
+</code></pre>
+<p><code>configure</code> writes only the person&#39;s settings (<code>~/.geo-observability/config.json</code>) and sends a test turn. It doesn&#39;t touch Claude Code or Codex settings, because the managed hooks already cover them. Delete the key file afterwards.</p>
+</li>
+</ol>
+<h2 id="keys-over-time"><a class="anchor" href="#keys-over-time" aria-hidden="true" tabindex="-1">#</a>Keys over time</h2>
+<ul>
+<li><strong>Replace a key</strong> (a laptop is lost, or you rotate keys on a schedule): make a new key, then on that machine run <code>node ~/.geo-observability/geo-trace.mjs set-key --key-file &lt;path&gt;</code> (or with managed hooks, the script under <code>/usr/local/lib/geo-trace/</code>). It keeps every other setting and sends a test turn. Then revoke the old key under <strong>Send traces</strong>.</li>
+<li><strong>Someone leaves</strong>: revoke their keys. Their machine stops being able to send at once; their past traces stay until the retention window ends, or delete them with the app.</li>
+<li><strong>Remove it from a machine</strong>: <code>uninstall</code> removes our hooks and the saved settings and leaves every other hook as it was. Managed hooks are removed by taking them out of managed settings.</li>
+</ul>
 <h2 id="reading-the-results"><a class="anchor" href="#reading-the-results" aria-hidden="true" tabindex="-1">#</a>Reading the results</h2>
 <p>Open <strong>Traces</strong> and choose the <strong>People</strong> tab: one row per person with their tools, sessions, turns and tokens for the date range. Select a person to open their page.</p>
 <p>People here means people using coding tools. Users of your own LLM apps are your customers, so they&#39;re left out unless you pick that app in the app filter.</p>
@@ -285,7 +307,7 @@ node ~/.geo-observability/geo-trace.mjs uninstall   # remove the hooks and the s
     </article>
   </main>
   <aside class="toc" aria-label="On this page">
-    <p class="toc-heading">On this page</p><ul><li><a href="#connect-a-machine">Connect a machine</a></li><li><a href="#personal-keys-and-who-sees-what">Personal keys and who sees what</a></li><li><a href="#what-a-workspace-allows">What a workspace allows</a></li><li><a href="#what-is-sent">What is sent</a></li><li><a href="#bring-in-sessions-from-before-you-connected">Bring in sessions from before you connected</a></li><li><a href="#check-pause-remove">Check, pause, remove</a></li><li><a href="#it-cant-slow-or-break-a-session">It can&#39;t slow or break a session</a></li><li><a href="#roll-it-out-to-everyone">Roll it out to everyone</a></li><li><a href="#reading-the-results">Reading the results</a></li><li><a href="#limits">Limits</a></li></ul>
+    <p class="toc-heading">On this page</p><ul><li><a href="#connect-a-machine">Connect a machine</a></li><li><a href="#personal-keys-and-who-sees-what">Personal keys and who sees what</a></li><li><a href="#what-a-workspace-allows">What a workspace allows</a></li><li><a href="#what-is-sent">What is sent</a></li><li><a href="#bring-in-sessions-from-before-you-connected">Bring in sessions from before you connected</a></li><li><a href="#check-pause-remove">Check, pause, remove</a></li><li><a href="#it-cant-slow-or-break-a-session">It can&#39;t slow or break a session</a></li><li><a href="#roll-it-out-to-everyone">Roll it out to everyone</a></li><li><a href="#keys-over-time">Keys over time</a></li><li><a href="#reading-the-results">Reading the results</a></li><li><a href="#limits">Limits</a></li></ul>
   </aside>
 </div>
 <footer class="footer"><p>GEO Observability by Organized AI</p></footer>
