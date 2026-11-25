@@ -38,6 +38,7 @@ AI search visibility (AEO/GEO) tracking with an observability layer, for client 
 ## Delivery (GitOps, see DOCUMENTATION/gitops.md)
 - Staging deploys from `main`; production only from a `vX.Y.Z` tag through the release workflow. Don't deploy production from an agent session.
 - Add user-visible changes under `## [Unreleased]` in CHANGELOG.md. Don't bump the version or tag unless asked; `npm run release:prepare` does both files.
+- While building on a feature branch, mark each finished phase with `npm run milestone -- <phase>` (tags `build/<version>-<phase>` locally). Never make a `v*` tag for a milestone: release.yml deploys production on any `v*.*.*` tag.
 - New bindings go into production and staging in `wrangler.jsonc` with different resource names; `npm run infra:check` must pass. Never give staging production's routes or resources.
 - Workflows live in `.github/workflows/` (or are parked in `CONFIG/github-workflows/` when the pushing app lacks the workflows permission). Pin every action to a commit SHA.
 

@@ -67,6 +67,20 @@ Decisions:
 | Identity | `user.id` is the email given at install (or the git email, or the login name). It is self-declared; per-person keys are a later step. |
 | Cost | Not computed. Subscription seats have no per-request price; tokens are the measure for now. |
 
+## Going live (G phases)
+
+Built so far: T0–T5, H1–H5, R1, P1, P2, each tagged `build/1.5.0-<phase>`. These phases take the branch to production, in order.
+
+| Phase | Scope | Done when |
+| --- | --- | --- |
+| G1 Public repo hygiene | Keep competitor research out of the public repo; the spec holds only our own decisions | No competitor material in the branch |
+| G2 Identity and access | Per-person ingest keys issued from the portal (today `user.id` is self-declared); People, reports and trace content limited to owners and the person themselves | A person cannot send as someone else, or read another person's prompts without owner rights |
+| G3 Privacy and notice | Workspace setting for capture level (metadata only, prompts, tool content); a plain notice shown at install; redaction of common secret patterns before send | Owner chooses the level; installer shows what is captured |
+| G4 Capacity and quotas | Per-plan span and storage limits with metering; long span bodies to R2 so D1 stays small; load test of ingest, retention prune and daily reports at a 50-person workspace | Limits enforced and measured on staging |
+| G5 Rollout for teams | Managed settings for Claude Code and Codex (`print-managed`), Codex `/hooks` approval steps, uninstall and key rotation in the guide | An admin can install for everyone without editing each machine |
+| G6 Reports people read | Daily report by email, per-person time zone for the report day, Claude Code subagent import | Reports arrive without opening the portal |
+| G7 Staging and release | Pull request to `main`, CI green, migrations 0006–0010 on staging, live hooks against staging; owner prepares 1.5.0 and tags `v1.5.0` | Release workflow deploys production |
+
 ## Later stages (not in this plan yet)
 
 | Stage | Scope |

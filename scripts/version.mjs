@@ -7,7 +7,12 @@
  *   node scripts/version.mjs notes 1.4.0            print that CHANGELOG section (GitHub Release notes)
  *   node scripts/version.mjs prepare minor          move [Unreleased] into a new dated section and bump the version
  *                                                   (patch | minor | major | X.Y.Z); commit it in a pull request, then tag
+ *   node scripts/version.mjs milestone p3            tag HEAD "build/<version>-p3" to mark a phase while building
+ *
+ * Milestone tags start with "build/", never "v", because release.yml deploys production on any v*.*.* tag
+ * (a pre-release like v1.5.0-beta.1 would match too).
  */
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -70,6 +75,13 @@ export function release(changelog, next, date) {
   return lines.join("\n");
 }
 
+/** "build/1.5.0-p3" for a phase name; null when the name is not a short slug. */
+export function milestoneTag(version, name) {
+  const slug = String(name ?? "").trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9.-]{0,39}$/.test(slug)) return null;
+  return `build/${version}-${slug}`;
+}
+
 function read(name) {
   return readFileSync(join(ROOT, name), "utf8");
 }
@@ -105,7 +117,19 @@ function main(argv) {
     console.log(`prepared ${next}. Open a pull request with it; once it is merged, tag main:\n  git switch main && git pull && git tag -a v${next} -m v${next} && git push origin v${next}`);
     return 0;
   }
-  console.log("usage: node scripts/version.mjs check [--tag vX.Y.Z] | notes [X.Y.Z] | prepare patch|minor|major|X.Y.Z");
+  if (cmd === "milestone") {
+    const tag = milestoneTag(pkg.version, value);
+    if (!tag) throw new Error("give a short phase name of letters, digits, dots or dashes, like p3 or hooks-h6");
+    const found = problems({ pkg, lock, changelog });
+    if (found.length) throw new Error(found.join("; "));
+    const git = (...a) => execFileSync("git", a, { cwd: ROOT, encoding: "utf8" }).trim();
+    if (git("status", "--porcelain", "--untracked-files=no")) throw new Error("commit your changes first; a milestone marks a commit");
+    const head = git("log", "-1", "--format=%h %s");
+    git("tag", "-a", tag, "-m", `${tag}: ${head}`);
+    console.log(`tagged ${tag} at ${head}\nlist: git tag -l 'build/*'   share: git push origin ${tag}`);
+    return 0;
+  }
+  console.log("usage: node scripts/version.mjs check [--tag vX.Y.Z] | notes [X.Y.Z] | prepare patch|minor|major|X.Y.Z | milestone <phase>");
   return 2;
 }
 
