@@ -41,23 +41,75 @@ function codeBlock(title, text) {
   return h("div", { class: "code-block" }, h("div", { class: "code-head" }, h("span", { class: "small muted" }, title), copyBtn(() => text)), h("pre", null, h("code", null, text)));
 }
 
+const installCmd = (s, key, user) =>
+  `curl -fsSL ${s.installer_url} -o geo-trace.mjs\nnode geo-trace.mjs install \\\n  --endpoint ${s.endpoint} \\\n  --key ${key} \\\n  --user ${user}`;
+
+/** Your own key: every turn sent with it is yours, and only you and the workspace owners can read it. */
+function personalKey(s) {
+  const box = h("div", { class: "tr-mykey" });
+  const draw = async (fresh) => {
+    let keys = [];
+    try {
+      keys = await api("tracing/keys");
+    } catch {
+      /* the list is a convenience; making a key still works */
+    }
+    const make = h("button", { type: "button", class: "btn btn-primary btn-sm" }, keys.length ? "Make another key" : "Make my key");
+    make.addEventListener("click", async () => {
+      make.disabled = true;
+      try {
+        draw(await api("tracing/keys", { method: "POST", body: {} }));
+      } catch (err) {
+        make.disabled = false;
+        box.append(errorBox(err));
+      }
+    });
+    clear(box).append(...[
+      h("p", null, "Your key ties every turn to you, so nobody can send as you. Your prompts are visible only to you and the workspace owners; usage numbers are visible to the team."),
+      fresh
+        ? h("div", null,
+            h("p", { class: "small" }, h("strong", null, "Copy it now. "), "The key is shown once."),
+            codeBlock("Terminal", installCmd(s, fresh.secret, fresh.person)))
+        : h("div", null, make, codeBlock("Terminal", installCmd(s, "YOUR_KEY", "you@company.com"))),
+      keys.length
+        ? h("ul", { class: "plain-list tr-keylist" }, keys.map((k) => {
+            const revoke = h("button", { type: "button", class: "btn btn-sm btn-ghost" }, "Revoke");
+            revoke.addEventListener("click", async () => {
+              if (!confirm(`Revoke ${k.prefix}…? Machines using it stop sending.`)) return;
+              revoke.disabled = true;
+              try {
+                await api(`tracing/keys/${encodeURIComponent(k.id)}`, { method: "DELETE" });
+                draw(null);
+              } catch (err) {
+                revoke.disabled = false;
+                box.append(errorBox(err));
+              }
+            });
+            return h("li", null, h("code", null, `${k.prefix}…`), " ", h("span", { class: "small muted" }, `${k.person} · ${k.last_used_at ? `last used ${fmt.date(k.last_used_at)}` : "not used yet"}`), " ", revoke);
+          }))
+        : null,
+    ].filter(Boolean));
+  };
+  draw(null);
+  return box;
+}
+
 function openSetup() {
   drawer("Send traces", async (body) => {
     body.append(skeleton(6));
     try {
       const s = await api("tracing/setup");
       clear(body).append(h("div", { class: "tr-setup" },
-        h("h3", { class: "section-label" }, "First, make an ingest key"),
-        h("p", null, "Under ", h("a", { href: "#/usage" }, "Usage & API"), ", create a key with the ", h("strong", null, "ingest"), " scope. It is shown once."),
         h("h2", { class: "tr-setup-title" }, "Claude Code and Codex"),
         h("p", null, "Each person runs this once on their machine. It adds a small script to Claude Code and Codex that sends every turn here: the prompt, the model calls with their token counts, and the tools used. It works with a subscription login as well as an API key."),
-        codeBlock("Terminal", `curl -fsSL ${s.installer_url} -o geo-trace.mjs\nnode geo-trace.mjs install \\\n  --endpoint ${s.endpoint} \\\n  --key YOUR_INGEST_KEY \\\n  --user you@company.com`),
+        personalKey(s),
         h("ul", { class: "plain-list" },
           h("li", null, "Prompts and answers are sent. Add ", h("code", null, "--no-content"), " to send only timings, tools and token counts."),
           h("li", null, "Tool inputs and outputs (file contents, command output) are not sent unless you add ", h("code", null, "--tool-content"), "."),
           h("li", null, "Codex asks each person to approve the new hooks: run ", h("code", null, "/hooks"), " in Codex once."),
           h("li", null, h("code", null, "node ~/.geo-observability/geo-trace.mjs status"), " shows what is connected; ", h("code", null, "uninstall"), " removes it.")),
         h("h2", { class: "tr-setup-title" }, "Your own LLM app"),
+        h("p", null, "Under ", h("a", { href: "#/usage" }, "Usage & API"), ", an owner creates a workspace key with the ", h("strong", null, "ingest"), " scope. It is shown once."),
         h("p", null, "Traces arrive over OpenTelemetry (OTLP over HTTP). Any app that already exports OpenTelemetry traces can send them here by changing three settings."),
         h("h3", { class: "section-label" }, "Point your exporter here"),
         codeBlock("Environment", `OTEL_EXPORTER_OTLP_ENDPOINT=${s.endpoint}\nOTEL_EXPORTER_OTLP_HEADERS=${s.key_header}=YOUR_INGEST_KEY\nOTEL_SERVICE_NAME=my-app`),

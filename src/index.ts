@@ -101,7 +101,7 @@ app.post("/ingest/otlp/v1/traces", async (c) => {
   const key = await resolveKey(c.env, secret, ["ingest"]);
   await rateLimit(c.env, key.keyId, 600);
   const { spans, encoding } = await readExport(c.req.raw);
-  const res = await ingestSpans(c.env, key.tenantId, spans, c.req.header("x-project-name") ?? null);
+  const res = await ingestSpans(c.env, key.tenantId, spans, c.req.header("x-project-name") ?? null, key.person);
   return exportResponse(encoding, res.rejected, res.reason);
 });
 

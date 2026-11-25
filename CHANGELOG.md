@@ -4,6 +4,14 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Added
+
+- Personal tracing keys for Claude Code and Codex: every turn sent with one belongs to its person, whatever the machine claims. Make one under Traces, Send traces.
+
+### Changed
+
+- Coding-tool prompts, answers and daily reports are visible only to their person and to workspace owners. Usage numbers stay visible to the workspace.
+
 ## [1.5.0] - 2026-11-23
 
 ### Added

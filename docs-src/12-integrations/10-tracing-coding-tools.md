@@ -13,7 +13,7 @@ Each person connects their own machine once. It works whether they sign in with 
 You'll need:
 
 - your endpoint: `https://<your-host>/ingest/otlp`
-- an **ingest** API key from **Usage & API**
+- a personal key: on the Traces page, choose **Send traces**, then **Make my key**
 - Node.js 18 or later on each machine
 
 The **Send traces** button on the Traces page shows these commands with your endpoint filled in.
@@ -24,7 +24,7 @@ The **Send traces** button on the Traces page shows these commands with your end
 curl -fsSL https://<your-host>/trace/geo-trace.mjs -o geo-trace.mjs
 node geo-trace.mjs install \
   --endpoint https://<your-host>/ingest/otlp \
-  --key <ingest key> \
+  --key <your key> \
   --user you@company.com
 ```
 
@@ -34,7 +34,17 @@ The installer:
 2. adds its hook to Claude Code (`~/.claude/settings.json`) and Codex (`~/.codex/hooks.json`), leaving every other setting and hook as it was, and keeping a backup of each file it changes
 3. sends one test turn, so you can see it under **Traces** straight away
 
-If `--user` is left out, it uses the person's git email, then their login name.
+## Personal keys and who sees what
+
+Each person makes their own key. Every turn sent with it is recorded as theirs, whatever name the machine gives, so nobody can send as someone else. Anyone in the workspace can make a key for themselves, viewers included. An owner can also make one for another person.
+
+- **Prompts, answers and daily reports** are visible to the person and to workspace owners.
+- **Usage numbers** (turns, tokens, tools on the People and Team views) are visible to everyone in the workspace.
+- Traces from your own LLM apps, sent with a workspace key, are visible to everyone in the workspace as before.
+
+Revoke a key from the same panel; machines using it stop sending. A person can hold up to five keys, one per machine if they like.
+
+If a workspace key is used instead of a personal key, the name comes from `--user`, then the person's git email, then their login name. That name is self-declared, so prefer personal keys.
 
 **Codex asks for approval.** Codex doesn't run a new hook until the person approves it: open Codex, run `/hooks`, and approve geo-trace. Until then Codex sends nothing. Claude Code needs no approval; new sessions pick the hook up.
 

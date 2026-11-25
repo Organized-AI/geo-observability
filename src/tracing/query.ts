@@ -17,6 +17,13 @@ export interface TraceFilters {
   minMs?: number;
   limit: number;
   cursor?: string;
+  /** When set, coding-tool traces are limited to this person's own (app traces stay visible). Owners leave it unset. */
+  viewer?: string;
+}
+
+/** Coding-tool content is private to its person; other apps' traces are shared with the workspace. */
+function ownOnly(viewer: string, b: Binds, alias = "t"): string {
+  return `(${alias}.user_id = ${b.add(viewer)} OR ${alias}.app_id NOT IN (SELECT id FROM trace_apps WHERE tenant_id = ?1 AND kind = 'coding_tool'))`;
 }
 
 export const MAX_SPANS_PER_TRACE_VIEW = 2000;
@@ -42,6 +49,7 @@ function whereFor(f: TraceFilters, b: Binds): string[] {
   if (f.userId) where.push(`t.user_id = ${b.add(f.userId)}`);
   if (f.model) where.push(`t.model = ${b.add(f.model)}`);
   if (f.minMs !== undefined) where.push(`(t.end_ms - t.start_ms) >= ${b.add(f.minMs)}`);
+  if (f.viewer) where.push(ownOnly(f.viewer, b));
   if (f.q) {
     const p = b.add(like(f.q));
     where.push(`(t.name LIKE ${p} ESCAPE '\\' OR t.input_preview LIKE ${p} ESCAPE '\\' OR t.output_preview LIKE ${p} ESCAPE '\\' OR t.trace_id = ${b.add(f.q.toLowerCase())})`);
@@ -88,8 +96,11 @@ export async function traceTotals(tdb: TenantDB, f: TraceFilters) {
 const SPAN_LIST_COLUMNS = `span_id, parent_span_id, name, kind, status_code, start_ms, end_ms, model, total_tokens, cost_micros`;
 
 /** One trace with a light row per span (enough for the tree and timeline); span bodies load on demand. */
-export async function getTrace(tdb: TenantDB, traceId: string) {
-  const trace = await tdb.first(`SELECT ${TRACE_COLUMNS} FROM llm_traces t JOIN trace_apps a ON a.id = t.app_id WHERE t.tenant_id = ?1 AND t.trace_id = ?2`, traceId);
+export async function getTrace(tdb: TenantDB, traceId: string, viewer?: string) {
+  const b = new Binds();
+  const id = b.add(traceId);
+  const own = viewer ? ` AND ${ownOnly(viewer, b)}` : "";
+  const trace = await tdb.first(`SELECT ${TRACE_COLUMNS} FROM llm_traces t JOIN trace_apps a ON a.id = t.app_id WHERE t.tenant_id = ?1 AND t.trace_id = ${id}${own}`, ...b.values);
   if (!trace) throw new HttpError(404, "not_found", "Trace not found");
   const spans = await tdb.all(
     `SELECT ${SPAN_LIST_COLUMNS} FROM llm_spans WHERE tenant_id = ?1 AND trace_id = ?2 ORDER BY start_ms, span_id LIMIT ${MAX_SPANS_PER_TRACE_VIEW + 1}`,
@@ -105,7 +116,8 @@ interface SpanRow {
   [k: string]: unknown;
 }
 
-export async function getSpan(tdb: TenantDB, traceId: string, spanId: string) {
+export async function getSpan(tdb: TenantDB, traceId: string, spanId: string, viewer?: string) {
+  if (viewer) await getTrace(tdb, traceId, viewer); // 404 when the trace is someone else's
   const row = await tdb.first<SpanRow>(
     `SELECT span_id, parent_span_id, trace_id, name, kind, status_code, status_message, start_ms, end_ms, model, provider,
             prompt_tokens, completion_tokens, total_tokens, cost_micros, session_id, user_id, input_text, output_text,
@@ -129,18 +141,22 @@ export async function getSpan(tdb: TenantDB, traceId: string, spanId: string) {
 }
 
 /** Conversations: traces that share a session id, newest activity first. */
-export function listSessions(tdb: TenantDB, f: Pick<TraceFilters, "appId" | "fromMs" | "toMs" | "limit">) {
+export function listSessions(tdb: TenantDB, f: Pick<TraceFilters, "appId" | "fromMs" | "toMs" | "limit" | "viewer">) {
   const b = new Binds();
   const where = ["t.tenant_id = ?1", "t.session_id IS NOT NULL"];
   if (f.appId) where.push(`t.app_id = ${b.add(f.appId)}`);
   if (f.fromMs !== undefined) where.push(`t.start_ms >= ${b.add(f.fromMs)}`);
   if (f.toMs !== undefined) where.push(`t.start_ms <= ${b.add(f.toMs)}`);
+  if (f.viewer) where.push(ownOnly(f.viewer, b));
+  // Previews come only from traces this viewer may read, even if a session id were shared.
+  const fOwn = f.viewer ? ` AND ${ownOnly(f.viewer, b, "f")}` : "";
+  const lOwn = f.viewer ? ` AND ${ownOnly(f.viewer, b, "l")}` : "";
   return tdb.all(
     `SELECT t.session_id, COUNT(*) AS traces, MIN(t.start_ms) AS start_ms, MAX(t.end_ms) AS end_ms,
             SUM(t.total_tokens) AS total_tokens, SUM(t.cost_micros) AS cost_micros, SUM(t.status = 'ERROR') AS errors,
             MAX(t.user_id) AS user_id,
-            (SELECT f.input_preview FROM llm_traces f WHERE f.tenant_id = ?1 AND f.session_id = t.session_id ORDER BY f.start_ms, f.trace_id LIMIT 1) AS first_input,
-            (SELECT l.output_preview FROM llm_traces l WHERE l.tenant_id = ?1 AND l.session_id = t.session_id ORDER BY l.start_ms DESC, l.trace_id DESC LIMIT 1) AS last_output
+            (SELECT f.input_preview FROM llm_traces f WHERE f.tenant_id = ?1 AND f.session_id = t.session_id${fOwn} ORDER BY f.start_ms, f.trace_id LIMIT 1) AS first_input,
+            (SELECT l.output_preview FROM llm_traces l WHERE l.tenant_id = ?1 AND l.session_id = t.session_id${lOwn} ORDER BY l.start_ms DESC, l.trace_id DESC LIMIT 1) AS last_output
      FROM llm_traces t WHERE ${where.join(" AND ")}
      GROUP BY t.session_id ORDER BY MAX(t.start_ms) DESC, t.session_id LIMIT ${f.limit}`,
     ...b.values,

@@ -168,7 +168,7 @@ api.get("/usage", async (c) => {
 
 api.get("/keys", async (c) => {
   const s = c.get("session");
-  return c.json(await s.tdb.all("SELECT id, name, prefix, scope, created_at, last_used_at FROM api_keys WHERE tenant_id = ?1 AND revoked_at IS NULL ORDER BY created_at DESC"));
+  return c.json(await s.tdb.all("SELECT id, name, prefix, scope, created_at, last_used_at FROM api_keys WHERE tenant_id = ?1 AND revoked_at IS NULL AND person IS NULL ORDER BY created_at DESC"));
 });
 
 api.post("/keys", async (c) => {

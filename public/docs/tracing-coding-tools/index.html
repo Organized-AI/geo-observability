@@ -60,7 +60,7 @@
 <p>You&#39;ll need:</p>
 <ul>
 <li>your endpoint: <code>https://&lt;your-host&gt;/ingest/otlp</code></li>
-<li>an <strong>ingest</strong> API key from <strong>Usage &amp; API</strong></li>
+<li>a personal key: on the Traces page, choose <strong>Send traces</strong>, then <strong>Make my key</strong></li>
 <li>Node.js 18 or later on each machine</li>
 </ul>
 <p>The <strong>Send traces</strong> button on the Traces page shows these commands with your endpoint filled in.</p>
@@ -68,7 +68,7 @@
 <pre><code class="language-bash">curl -fsSL https://&lt;your-host&gt;/trace/geo-trace.mjs -o geo-trace.mjs
 node geo-trace.mjs install \
   --endpoint https://&lt;your-host&gt;/ingest/otlp \
-  --key &lt;ingest key&gt; \
+  --key &lt;your key&gt; \
   --user you@company.com
 </code></pre>
 <p>The installer:</p>
@@ -77,7 +77,15 @@ node geo-trace.mjs install \
 <li>adds its hook to Claude Code (<code>~/.claude/settings.json</code>) and Codex (<code>~/.codex/hooks.json</code>), leaving every other setting and hook as it was, and keeping a backup of each file it changes</li>
 <li>sends one test turn, so you can see it under <strong>Traces</strong> straight away</li>
 </ol>
-<p>If <code>--user</code> is left out, it uses the person&#39;s git email, then their login name.</p>
+<h2 id="personal-keys-and-who-sees-what"><a class="anchor" href="#personal-keys-and-who-sees-what" aria-hidden="true" tabindex="-1">#</a>Personal keys and who sees what</h2>
+<p>Each person makes their own key. Every turn sent with it is recorded as theirs, whatever name the machine gives, so nobody can send as someone else. Anyone in the workspace can make a key for themselves, viewers included. An owner can also make one for another person.</p>
+<ul>
+<li><strong>Prompts, answers and daily reports</strong> are visible to the person and to workspace owners.</li>
+<li><strong>Usage numbers</strong> (turns, tokens, tools on the People and Team views) are visible to everyone in the workspace.</li>
+<li>Traces from your own LLM apps, sent with a workspace key, are visible to everyone in the workspace as before.</li>
+</ul>
+<p>Revoke a key from the same panel; machines using it stop sending. A person can hold up to five keys, one per machine if they like.</p>
+<p>If a workspace key is used instead of a personal key, the name comes from <code>--user</code>, then the person&#39;s git email, then their login name. That name is self-declared, so prefer personal keys.</p>
 <p><strong>Codex asks for approval.</strong> Codex doesn&#39;t run a new hook until the person approves it: open Codex, run <code>/hooks</code>, and approve geo-trace. Until then Codex sends nothing. Claude Code needs no approval; new sessions pick the hook up.</p>
 <h2 id="what-is-sent"><a class="anchor" href="#what-is-sent" aria-hidden="true" tabindex="-1">#</a>What is sent</h2>
 <p>One trace per turn (one prompt and everything the assistant did to answer it):</p>
@@ -251,7 +259,7 @@ node ~/.geo-observability/geo-trace.mjs uninstall   # remove the hooks and the s
     </article>
   </main>
   <aside class="toc" aria-label="On this page">
-    <p class="toc-heading">On this page</p><ul><li><a href="#connect-a-machine">Connect a machine</a></li><li><a href="#what-is-sent">What is sent</a></li><li><a href="#bring-in-sessions-from-before-you-connected">Bring in sessions from before you connected</a></li><li><a href="#check-pause-remove">Check, pause, remove</a></li><li><a href="#it-cant-slow-or-break-a-session">It can&#39;t slow or break a session</a></li><li><a href="#roll-it-out-to-everyone">Roll it out to everyone</a></li><li><a href="#reading-the-results">Reading the results</a></li><li><a href="#limits">Limits</a></li></ul>
+    <p class="toc-heading">On this page</p><ul><li><a href="#connect-a-machine">Connect a machine</a></li><li><a href="#personal-keys-and-who-sees-what">Personal keys and who sees what</a></li><li><a href="#what-is-sent">What is sent</a></li><li><a href="#bring-in-sessions-from-before-you-connected">Bring in sessions from before you connected</a></li><li><a href="#check-pause-remove">Check, pause, remove</a></li><li><a href="#it-cant-slow-or-break-a-session">It can&#39;t slow or break a session</a></li><li><a href="#roll-it-out-to-everyone">Roll it out to everyone</a></li><li><a href="#reading-the-results">Reading the results</a></li><li><a href="#limits">Limits</a></li></ul>
   </aside>
 </div>
 <footer class="footer"><p>GEO Observability by Organized AI</p></footer>

@@ -143,7 +143,8 @@ async function resolveApps(tdb: TenantDB, names: Set<string>): Promise<Map<strin
   return out;
 }
 
-export async function ingestSpans(env: Env, tenantId: string, spans: OtlpSpan[], headerApp: string | null): Promise<IngestResult> {
+/** `person` comes from a personal key and replaces any user.id the sender claims. */
+export async function ingestSpans(env: Env, tenantId: string, spans: OtlpSpan[], headerApp: string | null, person: string | null = null): Promise<IngestResult> {
   const tdb = new TenantDB(env.DB, tenantId);
   const now = Date.now();
   let rejected = 0;
@@ -198,7 +199,7 @@ export async function ingestSpans(env: Env, tenantId: string, spans: OtlpSpan[],
         facts.totalTokens,
         facts.costMicros,
         cut(facts.sessionId, 200),
-        cut(facts.userId, 200),
+        person ?? cut(facts.userId, 200),
         input,
         output,
         attrs.json,
