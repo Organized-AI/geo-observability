@@ -78,7 +78,7 @@ Built so far: T0–T5, H1–H5, R1, P1, P2, each tagged `build/1.5.0-<phase>`. T
 | G3 Privacy and notice (done) | Workspace setting for capture level (metadata only, prompts, tool content); a plain notice shown at install; redaction of common secret patterns before send | Owner chooses the level; installer shows what is captured |
 | G4 Capacity and quotas (done) | Per-plan span and storage limits with metering; long span bodies to R2 so D1 stays small; load test of ingest, retention prune and daily reports at a 50-person workspace | Limits enforced and measured on staging |
 | G5 Rollout for teams (done) | Managed settings for Claude Code and Codex (`print-managed`), Codex `/hooks` approval steps, uninstall and key rotation in the guide | An admin can install for everyone without editing each machine |
-| G6 Reports people read | Daily report by email, per-person time zone for the report day, Claude Code subagent import | Reports arrive without opening the portal |
+| G6 Reports people read (done) | Daily report by email, per-person time zone for the report day, Claude Code subagent import | Reports arrive without opening the portal |
 | G7 Staging and release | Pull request to `main`, CI green, migrations 0006–0010 on staging, live hooks against staging; owner prepares 1.5.0 and tags `v1.5.0` | Release workflow deploys production |
 
 ## Later stages (not in this plan yet)

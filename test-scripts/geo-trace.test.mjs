@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildTurn, managedSnippet, mergeHooks, removeHooks, runHook, slimEvent, toOtlp, tracesUrl, transcriptCalls } from "../public/trace/geo-trace.mjs";
+import { buildTurn, localZone, managedSnippet, mergeHooks, removeHooks, runHook, slimEvent, toOtlp, tracesUrl, transcriptCalls } from "../public/trace/geo-trace.mjs";
 
 const SCRIPT = fileURLToPath(new URL("../public/trace/geo-trace.mjs", import.meta.url));
 const cfgAll = { user: "ada@example.com", capture: { prompts: true, responses: true, tool_io: true } };
@@ -113,7 +113,7 @@ test("buildTurn makes one trace for a Claude Code turn: turn, model calls, tools
   assert.equal(root.endTimeUnixNano, `${T + 6000}000000`);
   assert.deepEqual(attrs(root), {
     "openinference.span.kind": "AGENT", "agent.name": "claude-code", "session.id": "claude-code:sess-1", "user.id": "ada@example.com", "harness.name": "claude-code",
-    "project.name": "billing-api", "turn.id": "p1", "permission.mode": "default", "input.value": "Fix the failing test", "output.value": "Fixed: the date was parsed in local time.",
+    "project.name": "billing-api", "user.timezone": localZone(), "turn.id": "p1", "permission.mode": "default", "input.value": "Fix the failing test", "output.value": "Fixed: the date was parsed in local time.",
   });
   // Tools: paired by id; the subagent's tool hangs under the subagent; one never reported back.
   const sub = by("subagent: Explore")[0];
@@ -617,4 +617,45 @@ test("configure writes only the config (for managed hooks), and set-key replaces
     assert.equal(got.at(-1).key, "geo_second_key_0123456789abcdef");
     assert.equal((await runAsync("set-key", "short")).code, 1);
   });
+});
+
+test("import attaches a Claude Code subagent's work to the turn that started it", async () => {
+  const { claudeTurns, withClaudeSubagents, buildTurn: build } = await import("../public/trace/geo-trace.mjs");
+  const dir = mkdtempSync(join(tmpdir(), "geo-sub-"));
+  const sid = "11111111-2222-3333-4444-555555555555";
+  const pid = "prompt-1";
+  const at = (s) => new Date(Date.UTC(2026, 10, 20, 12, 0, s)).toISOString();
+  const L = (o) => JSON.stringify(o);
+  const parent = [
+    L({ type: "user", sessionId: sid, promptId: pid, cwd: "/w/app", timestamp: at(0), message: { role: "user", content: "review this" } }),
+    L({ type: "assistant", sessionId: sid, timestamp: at(1), message: { id: "m1", model: "claude-opus-5-5", usage: { input_tokens: 10, output_tokens: 5 }, content: [{ type: "tool_use", id: "tu1", name: "Agent", input: { subagent_type: "code-reviewer" } }] } }),
+    L({ type: "user", sessionId: sid, timestamp: at(30), message: { role: "user", content: [{ type: "tool_result", tool_use_id: "tu1", content: "done" }] } }),
+    L({ type: "assistant", sessionId: sid, timestamp: at(31), message: { id: "m2", model: "claude-opus-5-5", usage: { input_tokens: 20, output_tokens: 8 }, content: [{ type: "text", text: "All good." }] } }),
+  ].join("\n");
+  const file = join(dir, `${sid}.jsonl`);
+  writeFileSync(file, parent);
+  mkdirSync(join(dir, sid, "subagents"), { recursive: true });
+  const agent = [
+    L({ type: "user", isSidechain: true, agentId: "a1", sessionId: sid, promptId: pid, timestamp: at(2), message: { role: "user", content: "check the diff" } }),
+    L({ type: "assistant", isSidechain: true, agentId: "a1", sessionId: sid, promptId: pid, timestamp: at(3), message: { id: "s1", model: "claude-sonnet-5-5", usage: { input_tokens: 100, output_tokens: 40 }, content: [{ type: "tool_use", id: "st1", name: "Read", input: { file_path: "/w/app/x.ts" } }] } }),
+    L({ type: "user", isSidechain: true, agentId: "a1", sessionId: sid, promptId: pid, timestamp: at(4), message: { role: "user", content: [{ type: "tool_result", tool_use_id: "st1", content: "..." }] } }),
+    L({ type: "assistant", isSidechain: true, agentId: "a1", sessionId: sid, promptId: pid, timestamp: at(20), message: { id: "s2", model: "claude-sonnet-5-5", usage: { input_tokens: 150, output_tokens: 60 }, content: [{ type: "text", text: "Looks fine." }] } }),
+  ].join("\n");
+  writeFileSync(join(dir, sid, "subagents", "agent-a1.jsonl"), agent);
+  writeFileSync(join(dir, sid, "subagents", "agent-a1.meta.json"), JSON.stringify({ agentType: "code-reviewer" }));
+  // An orphan whose turn is not in this file is ignored.
+  writeFileSync(join(dir, sid, "subagents", "agent-a2.jsonl"), agent.replaceAll(pid, "other-prompt"));
+
+  const turns = withClaudeSubagents(claudeTurns(parent, cfgDefault), file, cfgDefault);
+  assert.equal(turns.length, 1);
+  assert.equal(turns[0].events.at(-1).e, "Stop", "the turn still ends last");
+  const t = build("claude", cfgDefault, turns[0].events, { ...turns[0].extra, seed: `claude:${sid}:${pid}` });
+  const agentSpan = t.spans.find((s) => s.attrs["openinference.span.kind"] === "AGENT" && s.attrs["agent.name"] === "code-reviewer");
+  assert.ok(agentSpan, "the subagent is a step of the turn");
+  const read = t.spans.find((s) => s.attrs["tool.name"] === "Read");
+  assert.equal(read.parent, agentSpan.id, "its tool calls sit under it");
+  const subCalls = t.spans.filter((s) => s.parent === agentSpan.id && s.attrs["openinference.span.kind"] === "LLM");
+  assert.equal(subCalls.length, 2);
+  assert.equal(subCalls.reduce((n, s) => n + s.attrs["llm.token_count.total"], 0), 350);
+  rmSync(dir, { recursive: true, force: true });
 });

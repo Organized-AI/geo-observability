@@ -55,7 +55,7 @@ function captureLevel() {
   const box = h("div", { class: "tr-capture" });
   (async () => {
     try {
-      const [{ capture }, me] = await Promise.all([api("tracing/settings"), api("me").catch(() => null)]);
+      const [{ capture, email_reports }, me] = await Promise.all([api("tracing/settings"), api("me").catch(() => null)]);
       const owner = me?.tenant?.role === "owner" && !me?.demo;
       const note = h("p", { class: "small muted" }, "Enforced when traces arrive, whatever each machine is set to. Passwords, keys and tokens are always removed.");
       if (!owner) {
@@ -78,7 +78,22 @@ function captureLevel() {
           sel.disabled = false;
         }
       });
-      box.append(h("label", { class: "tr-capture-row" }, h("span", null, "What coding tools send"), sel), saved, note);
+      const mail = h("input", { type: "checkbox" });
+      mail.checked = !!email_reports;
+      const mailSaved = h("span", { class: "small muted", role: "status" });
+      mail.addEventListener("change", async () => {
+        mail.disabled = true;
+        try {
+          await api("tracing/settings", { method: "PUT", body: { email_reports: mail.checked } });
+          mailSaved.textContent = mail.checked ? "On. Each person gets their own report at 7am their time." : "Off.";
+        } catch {
+          mail.checked = !mail.checked;
+        } finally {
+          mail.disabled = false;
+        }
+      });
+      box.append(h("label", { class: "tr-capture-row" }, h("span", null, "What coding tools send"), sel), saved, note,
+        h("label", { class: "tr-check" }, mail, h("span", null, "Email each person their own daily report (only to them)")), mailSaved);
       box.append(teamKeys());
     } catch {
       /* the setting is informational here; the rest of the panel still works */

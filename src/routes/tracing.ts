@@ -12,6 +12,7 @@ import { peopleCsv, tracesCsv, tracesJsonl } from "../tracing/export";
 import { retentionDays, retentionStatus } from "../tracing/retention";
 import { getReport, listReports, personSummary, teamSummary } from "../tracing/people";
 import { CAPTURES, getCapture, setCapture, type Capture } from "../tracing/policy";
+import { reportEmailsOn, setReportEmails } from "../tracing/report-mail";
 import type { AppEnv } from "./portal";
 
 export const tracingApi = new Hono<AppEnv>();
@@ -182,18 +183,26 @@ tracingApi.get("/export/people.csv", async (c) => {
 
 // ------------------------------------------------------------------ capture level
 
-tracingApi.get("/settings", async (c) => c.json({ capture: await getCapture(c.get("session").tdb) }));
+tracingApi.get("/settings", async (c) => {
+  const tdb = c.get("session").tdb;
+  const [capture, email] = await Promise.all([getCapture(tdb), reportEmailsOn(tdb)]);
+  return c.json({ capture, email_reports: email });
+});
 
 /** Owners choose what coding tools may send. It is enforced at ingest, whatever each machine is set to. */
 tracingApi.put("/settings", async (c) => {
   const s = c.get("session");
   requireWrite(s);
   requireOwner(s);
-  const b = (await c.req.json().catch(() => ({}))) as { capture?: unknown };
-  if (!CAPTURES.includes(b.capture as Capture)) throw new HttpError(400, "bad_request", "capture must be full, prompts or metadata");
-  await setCapture(s.tdb, b.capture as Capture, s.email);
-  await s.tdb.run("INSERT INTO audit_log (id, tenant_id, user_email, action, detail) VALUES (?2, ?1, ?3, 'trace_settings.update', ?4)", newId("aud"), s.email, JSON.stringify({ capture: b.capture }));
-  return c.json({ capture: b.capture });
+  const b = (await c.req.json().catch(() => ({}))) as { capture?: unknown; email_reports?: unknown };
+  if (b.capture === undefined && b.email_reports === undefined) throw new HttpError(400, "bad_request", "Send capture or email_reports");
+  if (b.capture !== undefined && !CAPTURES.includes(b.capture as Capture)) throw new HttpError(400, "bad_request", "capture must be full, prompts or metadata");
+  if (b.email_reports !== undefined && typeof b.email_reports !== "boolean") throw new HttpError(400, "bad_request", "email_reports must be true or false");
+  if (b.capture !== undefined) await setCapture(s.tdb, b.capture as Capture, s.email);
+  if (b.email_reports !== undefined) await setReportEmails(s.tdb, b.email_reports as boolean, s.email);
+  await s.tdb.run("INSERT INTO audit_log (id, tenant_id, user_email, action, detail) VALUES (?2, ?1, ?3, 'trace_settings.update', ?4)", newId("aud"), s.email, JSON.stringify({ capture: b.capture, email_reports: b.email_reports }));
+  const [capture, email] = await Promise.all([getCapture(s.tdb), reportEmailsOn(s.tdb)]);
+  return c.json({ capture, email_reports: email });
 });
 
 // ------------------------------------------------------------------ personal keys

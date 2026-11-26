@@ -7,6 +7,7 @@
 import type { Env } from "../env";
 import { TenantDB } from "../lib/db";
 import { addDays, isDay, parseJson, today } from "../lib/util";
+import { localDayRange, localNow, validZone } from "./localday";
 
 const DAY_MS = 86_400_000;
 const attr = (key: string) => `json_extract(s.attributes, '$."${key}"')`;
@@ -208,6 +209,8 @@ export interface Observation {
 export interface DailyReport {
   user_id: string;
   day: string;
+  /** The time zone the day was counted in (the person's own, from their coding tool; UTC when unknown). */
+  tz?: string;
   totals: PersonSummary["totals"];
   /** The same numbers per active day over the seven days before, for comparison. Null when there was no activity. */
   usual: { active_days: number; turns_per_day: number; tokens_per_day: number; tool_failure_rate: number } | null;
@@ -284,13 +287,14 @@ export function observe(day: PersonSummary, week: PersonSummary): Observation[] 
 
 const dayRange = (day: string) => ({ from: Date.parse(`${day}T00:00:00Z`), to: Date.parse(`${day}T23:59:59.999Z`) });
 
-export async function buildReport(tdb: TenantDB, userId: string, day: string): Promise<DailyReport> {
-  const { from, to } = dayRange(day);
+export async function buildReport(tdb: TenantDB, userId: string, day: string, tz = "UTC"): Promise<DailyReport> {
+  const { from, to } = tz === "UTC" ? dayRange(day) : localDayRange(day, tz);
   const [d, week] = await Promise.all([personSummary(tdb, userId, from, to), personSummary(tdb, userId, from - 7 * DAY_MS, from - 1)]);
   const w = week.totals;
   return {
     user_id: userId,
     day,
+    tz,
     totals: d.totals,
     usual: w.active_days ? { active_days: w.active_days, turns_per_day: Math.round(w.turns / w.active_days), tokens_per_day: Math.round(w.total_tokens / w.active_days), tool_failure_rate: w.tool_calls ? w.tool_failures / w.tool_calls : 0 } : null,
     apps: d.apps,
@@ -320,14 +324,42 @@ export async function generateTenantReports(tdb: TenantDB, day: string): Promise
   return users.length;
 }
 
-/** Hourly: yesterday's reports, for every workspace. Late traces (an outbox draining, an import) are picked up by the next run. */
+/**
+ * Each person's yesterday, counted in their own time zone. Runs hourly, so a day is written once it has ended
+ * where they are and rewritten as late traces arrive. The emailed_at mark survives a rewrite.
+ */
+export async function generatePeopleReports(tdb: TenantDB, now: number): Promise<number> {
+  const people = await tdb.all<{ user_id: string; tz: string | null }>(
+    `SELECT DISTINCT t.user_id AS user_id, p.tz AS tz FROM llm_traces t JOIN trace_apps a ON a.id = t.app_id
+     LEFT JOIN trace_people p ON p.tenant_id = t.tenant_id AND p.user_id = t.user_id
+     WHERE t.tenant_id = ?1 AND a.kind = 'coding_tool' AND t.user_id IS NOT NULL AND t.start_ms >= ?2 LIMIT 2000`,
+    now - 3 * DAY_MS,
+  );
+  let n = 0;
+  for (const u of people) {
+    const tz = validZone(u.tz) ?? "UTC";
+    const day = addDays(localNow(tz, now).day, -1);
+    const report = await buildReport(tdb, u.user_id, day, tz);
+    if (!report.totals.turns) continue;
+    await tdb.run(
+      "INSERT INTO trace_reports (tenant_id, user_id, day, report) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (tenant_id, user_id, day) DO UPDATE SET report = excluded.report, created_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')",
+      u.user_id, day, JSON.stringify(report),
+    );
+    n++;
+  }
+  return n;
+}
+
+/** Hourly: each person's yesterday for every workspace, then the morning emails. Late traces are picked up by the next run. */
 export async function generateDailyReports(env: Env, now = new Date()): Promise<number> {
-  const day = addDays(today(now), -1);
   const tenants = await env.DB.prepare("SELECT DISTINCT tenant_id FROM trace_apps").all<{ tenant_id: string }>();
   let n = 0;
+  const { deliverReports } = await import("./report-mail");
   for (const t of tenants.results ?? []) {
+    const tdb = new TenantDB(env.DB, t.tenant_id);
     try {
-      n += await generateTenantReports(new TenantDB(env.DB, t.tenant_id), day);
+      n += await generatePeopleReports(tdb, now.getTime());
+      await deliverReports(env, tdb, now.getTime());
     } catch (err) {
       console.error("trace_reports_failed", t.tenant_id, String(err));
     }

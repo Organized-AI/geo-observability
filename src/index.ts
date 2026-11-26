@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { readUnsubscribeToken, stopReports } from "./tracing/report-mail";
 import { TenantDB } from "./lib/db";
 import { getCapture } from "./tracing/policy";
 import type { Env, RunJob } from "./env";
@@ -117,6 +118,26 @@ app.post("/ingest/otlp/v1/traces", async (c) => {
       .catch(() => undefined);
   }
   return exportResponse(encoding, res.rejected, res.reason);
+});
+
+/** The stop link in a daily report email: a page with one button, so link scanners can't stop it by visiting. */
+const stopPage = (title: string, body: string) =>
+  new Response(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>body{font:16px/1.5 system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 16px;color:#1d1d1b;background:#fafaf7}@media(prefers-color-scheme:dark){body{color:#eee;background:#161614}}button{font:inherit;padding:.5rem 1rem;border-radius:8px;border:1px solid currentColor;background:none;color:inherit;cursor:pointer}</style><h1>${title}</h1>${body}`, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex" } });
+
+app.get("/trace/stop-reports", async (c) => {
+  const t = c.req.query("t") ?? "";
+  const who = c.env.SHARE_LINK_SECRET ? await readUnsubscribeToken(c.env.SHARE_LINK_SECRET, t) : null;
+  if (!who) return stopPage("This link has expired", "<p>Ask a workspace owner, or turn the emails off from your report page.</p>");
+  const safe = t.replace(/[^A-Za-z0-9._-]/g, "");
+  return stopPage("Stop daily report emails?", `<p>You will still find your reports in the portal.</p><form method="post"><input type="hidden" name="t" value="${safe}"><button type="submit">Stop the emails</button></form>`);
+});
+
+app.post("/trace/stop-reports", async (c) => {
+  const form = await c.req.parseBody();
+  const who = c.env.SHARE_LINK_SECRET ? await readUnsubscribeToken(c.env.SHARE_LINK_SECRET, String(form.t ?? "")) : null;
+  if (!who) return stopPage("This link has expired", "<p>Ask a workspace owner to stop the emails.</p>");
+  await stopReports(new TenantDB(c.env.DB, who.tenantId), who.userId);
+  return stopPage("Done", "<p>You won't get daily report emails any more. Your reports are still in the portal.</p>");
 });
 
 /** What a key may send: the installer shows it, and the hook narrows what it sends to match. */

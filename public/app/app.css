@@ -455,6 +455,8 @@ mark.mark-own { background: var(--mark-own); color: inherit; border-radius: 4px;
 .tr-teamkeys textarea { width: 100%; max-width: 100%; box-sizing: border-box; }
 .tr-capture > *, .tr-teamkeys > * { min-width: 0; max-width: 100%; }
 .tr-teamkeys-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tr-check { display: flex; align-items: flex-start; gap: 8px; }
+.tr-check input { margin-top: 4px; }
 .tr-kpis.tr-kpis-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .tr-usage { min-width: 160px; }
 .tr-usage-cell { display: grid; gap: 6px; }

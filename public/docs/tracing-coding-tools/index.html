@@ -207,7 +207,7 @@ node geo-trace.mjs install \
 node ~/.geo-observability/geo-trace.mjs import --dry-run    # count what would be sent, send nothing
 </code></pre>
 <p>Traces are kept for 92 days, so importing further back than that only brings in turns that are deleted again within the hour.</p>
-<p>It uses the same content switches as the installer. Running it again is safe: a turn that was already sent isn&#39;t added twice, and a turn that was still running picks up its later steps. A turn sent live by the hooks and imported later is stored once.</p>
+<p>It uses the same content switches as the installer. Running it again is safe: a turn that was already sent isn&#39;t added twice, and a turn that was still running picks up its later steps. A turn sent live by the hooks and imported later is stored once. Work a Claude Code subagent did (its model calls and tools) comes in under the turn that started it.</p>
 <h2 id="check-pause-remove"><a class="anchor" href="#check-pause-remove" aria-hidden="true" tabindex="-1">#</a>Check, pause, remove</h2>
 <pre><code class="language-bash">node ~/.geo-observability/geo-trace.mjs status      # what is connected, and anything waiting to send
 node ~/.geo-observability/geo-trace.mjs test        # send a test turn
@@ -264,7 +264,7 @@ node ~/.geo-observability/geo-trace.mjs uninstall   # remove the hooks and the s
 </ul>
 <p>Tokens include cached input, which is most of a coding session, so the numbers are large. Cost isn&#39;t shown: a subscription seat has no price per request.</p>
 <h3 id="daily-reports"><a class="anchor" href="#daily-reports" aria-hidden="true" tabindex="-1">#</a>Daily reports</h3>
-<p>Each person gets a report for every day they were active. It&#39;s written after the day ends (UTC), and rewritten each hour that day if late turns arrive. Today&#39;s report is shown as a preview.</p>
+<p>Each person gets a report for every day they were active. It covers the person&#39;s own day, in the time zone their machine reports (UTC until it has sent one). It&#39;s written after that day ends, and rewritten each hour if late turns arrive. Today&#39;s report is shown as a preview.</p>
 <p>A report has the day&#39;s numbers, how they compare with that person&#39;s own active days in the week before, and a short list of observations:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -293,6 +293,7 @@ node ~/.geo-observability/geo-trace.mjs uninstall   # remove the hooks and the s
 </div>
 <p>Every observation comes from a number on the page, by fixed rules. Nothing is judged by a model, and nothing reads what was typed. The reports describe how the tools were used. They don&#39;t measure the quality of anyone&#39;s work, and they&#39;re a poor basis for comparing people: someone doing harder work will show more failures and longer turns.</p>
 <p>Reports are kept after the traces they were built from are deleted, since they hold counts and names only.</p>
+<p><strong>By email.</strong> An owner can turn on <strong>Email each person their own daily report</strong> on the <strong>Send traces</strong> panel. Each person then gets their report at about 7am their time, the morning after a day they used a coding tool. It goes only to them, as plain text with a link to the full report. Every email has a link to stop them; it takes one button press, so a mail scanner opening the link doesn&#39;t stop them by accident. People whose name is not an email address get no email.</p>
 <h2 id="limits"><a class="anchor" href="#limits" aria-hidden="true" tabindex="-1">#</a>Limits</h2>
 <ul>
 <li>Model calls and tokens for Claude Code are read from its session file, because Claude Code doesn&#39;t hand them to hooks. That file&#39;s format belongs to Claude Code and can change. If it does, turns still arrive, without model calls and tokens, until the script is updated.</li>

@@ -185,7 +185,7 @@ describe("capture level and redaction", () => {
   });
 
   it("lets only an owner change the level, and tells a key what it is", async () => {
-    expect((await call("GET", "/api/tracing/settings", undefined, samCookie)).json).toEqual({ capture: "full" });
+    expect((await call("GET", "/api/tracing/settings", undefined, samCookie)).json).toEqual({ capture: "full", email_reports: false });
     expect((await call("PUT", "/api/tracing/settings", { capture: "metadata" }, samCookie)).status).toBe(403);
     expect((await call("PUT", "/api/tracing/settings", { capture: "everything" })).status).toBe(400);
     expect((await call("PUT", "/api/tracing/settings", { capture: "prompts" })).status).toBe(200);

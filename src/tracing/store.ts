@@ -6,6 +6,8 @@
  * request has its summary row recomputed from the spans now stored. Because the summary is always derived from stored spans, the order
  * spans arrive in and how often they are resent cannot change the totals.
  */
+import { validZone } from "./localday";
+import { notePerson } from "./report-mail";
 import { applyPolicy, getCapture } from "./policy";
 import type { Env } from "../env";
 import { TenantDB } from "../lib/db";
@@ -274,6 +276,14 @@ export async function ingestSpans(env: Env, tenantId: string, spans: OtlpSpan[],
   );
   for (const part of chunk(stmts, 40)) await tdb.batch(part);
   for (const part of chunk([...traceIds], 40)) await tdb.batch(part.map((id) => tdb.prepare(SUMMARISE, id)));
+  // A coding tool says which time zone its person is in, so their daily report covers their own day.
+  const zones = new Map<string, string>();
+  for (const s of good) {
+    const user = person ?? (typeof s.attributes["user.id"] === "string" ? (s.attributes["user.id"] as string).slice(0, 200) : null);
+    const tz = validZone(s.attributes["user.timezone"]);
+    if (user && tz && typeof s.attributes["harness.name"] === "string") zones.set(user, tz);
+  }
+  for (const [user, tz] of zones) await notePerson(tdb, user, tz).catch(() => undefined);
   const seen = nowIso();
   await tdb.batch([...new Set(appIds.values())].map((id) => tdb.prepare("UPDATE trace_apps SET last_seen_at = ?3 WHERE tenant_id = ?1 AND id = ?2", id, seen)));
   return { accepted: good.length, rejected, reason: [...reasons].join("; "), traces: traceIds.size };

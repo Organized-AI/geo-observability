@@ -241,7 +241,7 @@ export function buildTurn(harness, cfg, events, extra = {}) {
 
   const root = {
     id: rootId, parent: null, name: "turn", start: start.t, end: Math.max(stop ? stop.t : lastT, start.t), error: null,
-    attrs: { "openinference.span.kind": "AGENT", "agent.name": h.service, ...common, ...(cwd ? { "project.name": basename(cwd) } : {}), ...(start.pid ? { "turn.id": start.pid } : {}), ...(start.pm ? { "permission.mode": start.pm } : {}), ...(model ? { "harness.model": model } : {}), ...(stop ? {} : { "turn.incomplete": true }) },
+    attrs: { "openinference.span.kind": "AGENT", "agent.name": h.service, ...common, ...(cwd ? { "project.name": basename(cwd) } : {}), "user.timezone": localZone(), ...(start.pid ? { "turn.id": start.pid } : {}), ...(start.pm ? { "permission.mode": start.pm } : {}), ...(model ? { "harness.model": model } : {}), ...(stop ? {} : { "turn.incomplete": true }) },
   };
   if (start.cmd) root.attrs["slash.command"] = start.cmd;
   if (start.prompt !== undefined) root.attrs["input.value"] = start.prompt;
@@ -365,6 +365,11 @@ export function redact(text) {
     });
   }
   return out;
+}
+
+/** The person's time zone, so their daily report covers their own day. */
+export function localZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch { return "UTC"; }
 }
 
 const scrub = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === "string" ? redact(v) : v]));
@@ -579,6 +584,72 @@ export function claudeTurns(text, cfg) {
   }).filter((c) => c.sid);
 }
 
+/**
+ * One Claude Code subagent's transcript (`<session>/subagents/agent-<id>.jsonl`) as the events its parent turn would
+ * have had live: start, its tool calls, stop. Its lines carry the parent turn's promptId, which is how it is attached.
+ */
+export function claudeSubagent(text, cfg, aid, atype) {
+  const cap = cfg.capture;
+  const events = [];
+  const tools = new Map();
+  let pid = "", sid = "", first = null, last = null, answer = "";
+  for (const line of text.split("\n")) {
+    if (!line || !(line.includes('"user"') || line.includes('"assistant"'))) continue;
+    let d;
+    try { d = JSON.parse(line); } catch { continue; }
+    const t = tsOf(d);
+    const m = d && d.message;
+    if (t === null || !m || typeof m !== "object") continue;
+    if (!pid && typeof d.promptId === "string") pid = d.promptId;
+    if (!sid && typeof d.sessionId === "string") sid = d.sessionId;
+    first = first === null ? t : Math.min(first, t);
+    last = last === null ? t : Math.max(last, t);
+    const blocks = Array.isArray(m.content) ? m.content : [];
+    if (d.type === "assistant") {
+      for (const b of blocks) {
+        if (b && b.type === "tool_use" && typeof b.id === "string") {
+          tools.set(b.id, b.name || "tool");
+          events.push({ t, e: "PreToolUse", sid, aid, tid: b.id, tool: b.name || "tool", meta: toolFacts(b.name, b.input), ...(cap.tool_io ? { input: cut(b.input, LIMITS.tool) } : {}) });
+        } else if (b && b.type === "text" && typeof b.text === "string" && b.text.trim()) answer = b.text;
+      }
+    } else if (d.type === "user") {
+      for (const r of blocks.filter((b) => b && b.type === "tool_result")) {
+        events.push({ t, e: r.is_error ? "PostToolUseFailure" : "PostToolUse", sid, aid, tid: r.tool_use_id, tool: tools.get(r.tool_use_id) || "tool", ...(cap.tool_io ? { output: cut(r.content, LIMITS.tool) } : {}), ...(r.is_error ? { err: cap.tool_io ? cut(r.content, 2000) : "The tool call failed." } : {}) });
+      }
+    }
+  }
+  if (!pid || first === null) return null;
+  events.unshift({ t: first, e: "SubagentStart", sid, aid, atype: atype || "subagent" });
+  events.push({ t: last, e: "SubagentStop", sid, aid, ...(cap.responses && answer ? { answer: cut(answer, LIMITS.answer) } : {}) });
+  return { pid, aid, events, calls: transcriptCalls(text, {}) };
+}
+
+/** Adds each subagent found beside a Claude Code session file to the turn that started it. */
+export function withClaudeSubagents(turns, file, cfg) {
+  const dir = join(file.replace(/\.jsonl$/, ""), "subagents");
+  let names = [];
+  try { names = readdirSync(dir).filter((n) => /^agent-[A-Za-z0-9_-]+\.jsonl$/.test(n)); } catch { return turns; }
+  const byPid = new Map(turns.map((x) => [x.key, x]));
+  for (const name of names) {
+    const path = join(dir, name);
+    try {
+      if (statSync(path).size > LIMITS.transcriptBytes) continue;
+      const aid = name.slice("agent-".length, -".jsonl".length);
+      let atype = "";
+      try { atype = String(JSON.parse(readFileSync(path.replace(/\.jsonl$/, ".meta.json"), "utf8")).agentType || ""); } catch { /* no meta */ }
+      const a = claudeSubagent(readFileSync(path, "utf8"), cfg, aid, atype);
+      const turn = a && byPid.get(a.pid);
+      if (!turn) continue;
+      const stops = turn.events.filter((e) => e.e === "Stop");
+      const rest = [...turn.events.filter((e) => e.e !== "Stop"), ...a.events].sort((x, y) => x.t - y.t);
+      const end = rest.length ? rest[rest.length - 1].t : 0;
+      turn.events = [...rest, ...stops.map((e) => ({ ...e, t: Math.max(e.t, end) }))]; // the turn still ends last
+      turn.extra = { ...turn.extra, agentCalls: { ...(turn.extra.agentCalls || {}), [aid]: a.calls } };
+    } catch { /* one unreadable subagent never stops the import */ }
+  }
+  return turns;
+}
+
 /** Turns in a Codex session file (a "rollout"), as hook-style events. The format is internal to Codex. */
 export function codexTurns(text, cfg) {
   const cap = cfg.capture;
@@ -667,7 +738,7 @@ async function importHistory(a, say) {
   const since = Date.now() - days * 86_400_000;
   const want = String(a.tools || "claude,codex").split(",").map((s) => s.trim());
   const sources = [
-    want.includes("claude") && { label: "Claude Code", files: sessionFiles(join(claudeDir(), "projects"), since, /\.jsonl$/, 1), read: claudeTurns },
+    want.includes("claude") && { label: "Claude Code", files: sessionFiles(join(claudeDir(), "projects"), since, /\.jsonl$/, 1), read: (text, c, file) => withClaudeSubagents(claudeTurns(text, c), file, c) },
     want.includes("codex") && { label: "Codex", files: sessionFiles(join(codexDir(), "sessions"), since, /^rollout-.*\.jsonl$/, 4), read: codexTurns },
   ].filter(Boolean);
   let batch = [];
@@ -691,7 +762,7 @@ async function importHistory(a, say) {
     let turns = 0, spans = 0, tokens = 0, sessions = 0, skipped = 0;
     for (const file of src.files) {
       let list = [];
-      try { list = src.read(readFileSync(file, "utf8"), use); } catch { skipped++; continue; }
+      try { list = src.read(readFileSync(file, "utf8"), use, file); } catch { skipped++; continue; }
       const recent = list.filter((x) => x.events[x.events.length - 1].t >= since);
       if (recent.length) sessions++;
       for (const x of recent) {

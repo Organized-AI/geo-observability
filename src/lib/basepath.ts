@@ -13,7 +13,7 @@ import type { Env } from "../env";
 export const BASE_HEADER = "x-geo-base";
 
 /** Paths the Worker answers itself; everything else is a static asset. Mirrors run_worker_first in wrangler.jsonc. */
-const WORKER_PATHS = [/^\/api\//, /^\/mcp(\/|$)/, /^\/ingest\//, /^\/share\//, /^\/auth\//, /^\/webhooks\//, /^\/healthz$/];
+const WORKER_PATHS = [/^\/api\//, /^\/mcp(\/|$)/, /^\/ingest\//, /^\/share\//, /^\/auth\//, /^\/webhooks\//, /^\/healthz$/, /^\/trace\/stop-reports$/];
 
 /** Machine endpoints that keep answering on any host (no redirect): REST, MCP, ingest, webhooks, tap.js. */
 const MACHINE_PATHS = [/^\/api\//, /^\/mcp(\/|$)/, /^\/ingest\//, /^\/webhooks\//, /^\/healthz$/, /^\/tap\.js$/];

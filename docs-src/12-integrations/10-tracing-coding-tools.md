@@ -109,7 +109,7 @@ node ~/.geo-observability/geo-trace.mjs import --dry-run    # count what would b
 
 Traces are kept for 92 days, so importing further back than that only brings in turns that are deleted again within the hour.
 
-It uses the same content switches as the installer. Running it again is safe: a turn that was already sent isn't added twice, and a turn that was still running picks up its later steps. A turn sent live by the hooks and imported later is stored once.
+It uses the same content switches as the installer. Running it again is safe: a turn that was already sent isn't added twice, and a turn that was still running picks up its later steps. A turn sent live by the hooks and imported later is stored once. Work a Claude Code subagent did (its model calls and tools) comes in under the turn that started it.
 
 ## Check, pause, remove
 
@@ -179,7 +179,7 @@ Tokens include cached input, which is most of a coding session, so the numbers a
 
 ### Daily reports
 
-Each person gets a report for every day they were active. It's written after the day ends (UTC), and rewritten each hour that day if late turns arrive. Today's report is shown as a preview.
+Each person gets a report for every day they were active. It covers the person's own day, in the time zone their machine reports (UTC until it has sent one). It's written after that day ends, and rewritten each hour if late turns arrive. Today's report is shown as a preview.
 
 A report has the day's numbers, how they compare with that person's own active days in the week before, and a short list of observations:
 
@@ -192,6 +192,8 @@ A report has the day's numbers, how they compare with that person's own active d
 Every observation comes from a number on the page, by fixed rules. Nothing is judged by a model, and nothing reads what was typed. The reports describe how the tools were used. They don't measure the quality of anyone's work, and they're a poor basis for comparing people: someone doing harder work will show more failures and longer turns.
 
 Reports are kept after the traces they were built from are deleted, since they hold counts and names only.
+
+**By email.** An owner can turn on **Email each person their own daily report** on the **Send traces** panel. Each person then gets their report at about 7am their time, the morning after a day they used a coding tool. It goes only to them, as plain text with a link to the full report. Every email has a link to stop them; it takes one button press, so a mail scanner opening the link doesn't stop them by accident. People whose name is not an email address get no email.
 
 ## Limits
 
