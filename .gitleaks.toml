@@ -11,3 +11,11 @@ regexes = [
   '''^whsec_test_geo_observability_0123456789$''',
   '''^sk_test_abcd[E]FGH1234$''',
 ]
+
+[[allowlists]]
+description = "Fake ingest keys and a fake AWS key used only by the geo-trace hook tests"
+regexTarget = "secret"
+regexes = [
+  '''^geo_(test|first|second)_key_0123456789abcde[f]$''',
+  '''^AKIAABCDEFGHIJKLMNO[P]$''',
+]
