@@ -101,7 +101,7 @@
       "vars": {
         "ENVIRONMENT": "staging",
         "APP_NAME": "GEO Observability (staging)",
-        "APP_URL": "",
+        "APP_URL": "https://geo-observability-staging.jordan-691.workers.dev",
         "AI_GATEWAY_ID": "geo-observability-staging",
         "DEMO_MODE": "true",
         "DEMO_TENANT_SLUG": "demo",
