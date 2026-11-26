@@ -4,6 +4,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-26
+
 ### Added
 
 - Personal tracing keys for Claude Code and Codex: every turn sent with one belongs to its person, whatever the machine claims. Make one under Traces, Send traces.
