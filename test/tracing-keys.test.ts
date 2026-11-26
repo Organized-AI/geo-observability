@@ -285,3 +285,31 @@ describe("team rollout", () => {
     expect(String(res.json)).toContain("full@keys.test,,already has 5 keys");
   });
 });
+
+describe("review fixes", () => {
+  it("redacts secrets inside array and map attribute values", async () => {
+    const { applyPolicy } = await import("../src/tracing/policy");
+    const span = applyPolicy(
+      { traceId: "e".repeat(32), spanId: "e".repeat(16), parentSpanId: null, name: "x", startMs: 1, endMs: 2, statusCode: "OK", statusMessage: null, resource: {}, events: [],
+        attributes: { list: ["ok", "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123"], map: { inner: { token: "ghp_abcdefghijklmnopqrstuvwxyz0123456789" } } } },
+      "full",
+    );
+    expect(JSON.stringify(span.attributes)).not.toMatch(/sk-ant-api03|ghp_abc/);
+    expect(span.attributes.list).toEqual(["ok", "[redacted:anthropic-key]"]);
+  });
+
+  it("a resend with the same end time does not overwrite the stored body", async () => {
+    const k = (await call("POST", "/api/keys", { name: "dup", scope: "ingest" })).json.secret;
+    const T = "f".repeat(32);
+    const first = turn(T, "u", `first ${"a".repeat(12_000)}`, false);
+    expect((await send(k, first)).status).toBe(200);
+    const again = turn(T, "u", `second ${"b".repeat(12_000)}`, false);
+    // Same ids and times as the first.
+    (again.resourceSpans[0]!.scopeSpans[0]!.spans[0] as any).startTimeUnixNano = (first.resourceSpans[0]!.scopeSpans[0]!.spans[0] as any).startTimeUnixNano;
+    (again.resourceSpans[0]!.scopeSpans[0]!.spans[0] as any).endTimeUnixNano = (first.resourceSpans[0]!.scopeSpans[0]!.spans[0] as any).endTimeUnixNano;
+    expect((await send(k, again)).status).toBe(200);
+    const row = await env.DB.prepare("SELECT body_key FROM llm_spans WHERE tenant_id = ?1 AND trace_id = ?2").bind(tenantId, T).first<{ body_key: string }>();
+    const body = (await (await env.ANSWERS.get(row!.body_key))!.json()) as { input: string };
+    expect(body.input.startsWith("first ")).toBe(true);
+  });
+});

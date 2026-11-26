@@ -379,7 +379,8 @@ export async function getReport(tdb: TenantDB, userId: string, day: string): Pro
   const row = await tdb.first<{ report: string }>("SELECT report FROM trace_reports WHERE tenant_id = ?1 AND user_id = ?2 AND day = ?3", userId, day);
   const stored = row ? parseJson<DailyReport | null>(row.report, null) : null;
   if (stored) return { ...stored, stored: true };
-  const live = await buildReport(tdb, userId, day);
+  const person = await tdb.first<{ tz: string | null }>("SELECT tz FROM trace_people WHERE tenant_id = ?1 AND user_id = ?2", userId);
+  const live = await buildReport(tdb, userId, day, validZone(person?.tz) ?? "UTC");
   return live.totals.turns ? { ...live, stored: false } : null;
 }
 

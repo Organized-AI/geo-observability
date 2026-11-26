@@ -198,6 +198,17 @@ export async function ingestSpans(env: Env, tenantId: string, spans: OtlpSpan[],
   for (let i = 0; i < good.length; i++) good[i] = applyPolicy(good[i] as OtlpSpan, capture);
 
   const appIds = await resolveApps(tdb, new Set(good.map((s) => appNameFor(s, headerApp))));
+  // The row is only replaced by a later end time (see INSERT_SPAN), so a body is only written for a span that is new or
+  // later than what is stored; a resend with the same end time must not overwrite the object the row points at.
+  const storedEnd = new Map<string, number>();
+  for (const part of chunk(good, 40)) {
+    const marks = part.map((_, i) => `(?${i * 2 + 2}, ?${i * 2 + 3})`).join(", ");
+    const rows = await tdb.all<{ trace_id: string; span_id: string; end_ms: number }>(
+      `SELECT trace_id, span_id, end_ms FROM llm_spans WHERE tenant_id = ?1 AND (trace_id, span_id) IN (VALUES ${marks})`,
+      ...part.flatMap((s) => [s.traceId, s.spanId]),
+    );
+    for (const r of rows) storedEnd.set(`${r.trace_id}/${r.span_id}`, r.end_ms);
+  }
   const stmts: D1PreparedStatement[] = [];
   const puts: Promise<unknown>[] = [];
   const traceIds = new Set<string>();
@@ -222,7 +233,8 @@ export async function ingestSpans(env: Env, tenantId: string, spans: OtlpSpan[],
     let rowEvents = eventsJson;
     let key: string | null = null;
     const bodySize = (input?.length ?? 0) + (output?.length ?? 0) + attrs.json.length + eventsJson.length;
-    if (bodySize > LIMITS.inlineBytes && env.ANSWERS) {
+    const prior = storedEnd.get(`${s.traceId}/${s.spanId}`);
+    if (bodySize > LIMITS.inlineBytes && env.ANSWERS && (prior === undefined || endMs > prior)) {
       key = bodyKey(tenantId, s.traceId, s.spanId, endMs);
       puts.push(env.ANSWERS.put(key, JSON.stringify({ input, output, attributes: JSON.parse(attrs.json), events: JSON.parse(eventsJson) }), { httpMetadata: { contentType: "application/json" } }));
       rowInput = cut(input, LIMITS.inlineTextChars);

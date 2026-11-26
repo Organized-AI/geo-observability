@@ -64,6 +64,15 @@ describe("reports in each person's own day, and the morning email", () => {
     expect(JSON.parse(row!.report)).toMatchObject({ tz: "America/Chicago", totals: { turns: 1 } });
   });
 
+  it("builds an unstored day in the person's own time zone", async () => {
+    const { getReport } = await import("../src/tracing/people");
+    await env.DB.prepare("DELETE FROM trace_reports WHERE tenant_id = ?1").bind(tenantId).run();
+    const r = await getReport(new TenantDB(env.DB, tenantId), "chi@reports.test", "2026-07-15");
+    expect(r).toMatchObject({ stored: false, tz: "America/Chicago", totals: { turns: 1 } });
+    expect(await getReport(new TenantDB(env.DB, tenantId), "chi@reports.test", "2026-07-16")).toBeNull();
+    await generatePeopleReports(new TenantDB(env.DB, tenantId), Date.UTC(2026, 6, 16, 14));
+  });
+
   it("emails nobody until an owner turns it on, then sends each person theirs once", async () => {
     const tdb = new TenantDB(env.DB, tenantId);
     const outbox = () => env.DB.prepare("SELECT to_email, subject, text FROM email_outbox WHERE to_email = 'chi@reports.test'").all<{ to_email: string; subject: string; text: string }>();

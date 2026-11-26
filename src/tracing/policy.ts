@@ -1,6 +1,6 @@
 /** The workspace's capture level for coding tools, enforced at ingest whatever a machine is set to send. */
 import type { TenantDB } from "../lib/db";
-import type { Attrs, OtlpSpan } from "./otlp";
+import type { AttrValue, Attrs, OtlpSpan } from "./otlp";
 import { redact } from "./redact";
 
 export type Capture = "full" | "prompts" | "metadata";
@@ -32,7 +32,15 @@ function strip(attrs: Attrs, all: boolean): Attrs {
   return out;
 }
 
-const redactAll = (attrs: Attrs): Attrs => Object.fromEntries(Object.entries(attrs).map(([k, v]) => [k, typeof v === "string" ? redact(v) : v]));
+/** Redacts every string, including those inside arrays and maps (OTLP allows both as attribute values). */
+function redactValue(v: AttrValue): AttrValue {
+  if (typeof v === "string") return redact(v);
+  if (Array.isArray(v)) return v.map(redactValue);
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, redactValue(x)]));
+  return v;
+}
+
+const redactAll = (attrs: Attrs): Attrs => Object.fromEntries(Object.entries(attrs).map(([k, v]) => [k, redactValue(v)]));
 
 /**
  * Applies the capture level to coding-tool spans (those carrying harness.name) and redacts secrets in every span.
