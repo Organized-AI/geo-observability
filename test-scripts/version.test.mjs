@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bump, problems, release, sections } from "../scripts/version.mjs";
+import { bump, milestoneTag, problems, release, sections } from "../scripts/version.mjs";
 
 const changelog = "# Changelog\n\n## [Unreleased]\n\n### Added\n- New thing\n\n## [1.3.1] - 2026-11-13\n- Pricing\n\n## 1.3.0\n- Base path\n";
 const pkg = (v) => ({ version: v });
@@ -31,4 +31,13 @@ test("bump and release move Unreleased into a dated section", () => {
   assert.equal(s[0].body, "");
   assert.equal(s[1].body, "### Added\n- New thing");
   assert.throws(() => release(out, "1.5.0", "2026-12-02"), /nothing under/);
+});
+
+test("milestone tags never look like a release tag", () => {
+  assert.equal(milestoneTag("1.5.0", "P3"), "build/1.5.0-p3");
+  assert.equal(milestoneTag("1.5.0", "hooks-h6"), "build/1.5.0-hooks-h6");
+  assert.equal(milestoneTag("1.5.0", ""), null);
+  assert.equal(milestoneTag("1.5.0", "a b"), null);
+  assert.equal(milestoneTag("1.5.0", "../x"), null);
+  assert.ok(!/^v\d/.test(milestoneTag("1.5.0", "p3")));
 });

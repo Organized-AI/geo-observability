@@ -4,6 +4,40 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Added
+
+- Personal tracing keys for Claude Code and Codex: every turn sent with one belongs to its person, whatever the machine claims. Make one under Traces, Send traces.
+- A workspace capture level for coding tools (everything, prompts and answers, or usage only), set by an owner and enforced when traces arrive.
+- Secrets (API keys, tokens, passwords, private keys) are replaced before a turn leaves the machine and again on arrival.
+- The installer prints what it will send, under which name, and who can read it.
+- A monthly span allowance per workspace (2,000,000 by default), shown under Traces with a warning at 80%. Past it, new traces are refused with 429 until the next month.
+- Large span bodies are kept in R2, so the database holds short previews; the span view and exports still show everything.
+- Team rollout: owners download personal keys for many people at once (CSV), `geo-trace.mjs configure` sets a machine up for managed hooks from a key file, and `set-key` replaces a key in place.
+- Daily reports by email (off until an owner turns it on): each person gets their own at 7am their time, with a stop link.
+- Daily reports count the person's own day, in the time zone their machine reports.
+- Importing Claude Code sessions now brings in subagents' model calls and tools under the turn that started them.
+
+### Changed
+
+- Coding-tool prompts, answers and daily reports are visible only to their person and to workspace owners. Usage numbers stay visible to the workspace.
+
+## [1.5.0] - 2026-11-23
+
+### Added
+- LLM tracing: send traces from your own LLM apps over OpenTelemetry (OTLP over HTTP, protobuf or JSON) to `/ingest/otlp/v1/traces` with an ingest key. Spans carrying OpenInference or OpenTelemetry `gen_ai` attributes show their model, messages, tool calls, retrieved documents, tokens and cost.
+- A **Traces** page in the portal: runs by app with error, search and date filters, conversations grouped by session, and a trace page with the span tree, a timeline and the detail of each step. The demo workspace has sample traces.
+- Claude Code and Codex as trace sources: `geo-trace.mjs` (served at `/trace/geo-trace.mjs`) connects a person's machine with one command and sends each turn as a trace with its model calls, token counts and tool calls. Prompts and answers are sent by default and can be switched off; tool inputs and outputs are off unless switched on. It works with subscription logins and can be rolled out through managed settings. `import` sends the sessions already on a machine.
+- A **People** tab under Traces: tools, sessions, turns and tokens per person, with a filter from a person to their traces.
+- A page per person: tools with failure rates and timing, skills, plugins, MCP servers, subagents, slash commands, shell programs, models, projects and sessions. The geo-trace script now sends these names with every tool call (never the inputs).
+- Daily reports per person, written after each day: the day's numbers against their own previous week, with observations labelled Watch, Try or Good. Rules only; nothing reads what was typed.
+- Across the team, on the People tab: how many people use skills, subagents, plugins, MCP servers and slash commands, who uses each, and what stands out. A person's page shows the change from the period before.
+- People and daily reports count coding-tool users only; end users of your own apps show when that app is chosen.
+- A turn sent live and imported later is stored once, and a turn imported while still running is completed by its finished copy.
+- Quarterly retention: traces are deleted 92 days after they start (hourly job; `TRACE_RETENTION_DAYS` changes the window). The Traces page says when traces are within 14 days of deletion.
+- Export from the Traces page, using the filters on screen: traces as CSV, full traces with every step as JSON Lines, and people as CSV.
+- `/api/tracing` for the portal (apps, traces, spans, sessions, people, setup) and three user guide pages under Integrations.
+- Migrations `0006_llm_tracing.sql` (`trace_apps`, `llm_spans`, `llm_traces`) `0007_trace_people.sql` and `0008_trace_retention.sql` (indexes) `0009_trace_person_reports.sql` (`trace_reports`) and `0010_trace_app_kind.sql`. Apply them before deploying.
+
 ## [1.4.1] - 2026-11-14
 
 ### Changed

@@ -13,6 +13,7 @@ AI search visibility (AEO/GEO) tracking with an observability layer, for client 
 ## Project structure
 - `src/engines/` provider clients + stub + registry · `src/judge/` mention matching and LLM judge
 - `src/metrics/` filters, reports, rollups · `src/observability/` bot/referral classify, ingest, Pages table
+- `src/tracing/` LLM tracing: OTLP decode, OpenInference attribute reading, span store, queries, retention, export, per-person usage and daily reports · `src/routes/tracing.ts` portal API at `/api/tracing` · `public/trace/geo-trace.mjs` hook script and installer for Claude Code and Codex (tests in `test-scripts/`)
 - `src/workflows/` scheduler, pipeline steps, Workflow classes · `src/insights/` insights and actions
 - `src/routes/` portal API, public v1 API · `src/mcp/` MCP server · `src/billing/` Stripe client, metering push, webhooks, gating · `src/routes/billing.ts` signup/checkout/portal/webhook
 - `public/app` portal · `public/signup` self-serve signup · `public/index.html` landing · `public/docs` generated docs · `edge/` client-zone tap Worker
@@ -37,6 +38,7 @@ AI search visibility (AEO/GEO) tracking with an observability layer, for client 
 ## Delivery (GitOps, see DOCUMENTATION/gitops.md)
 - Staging deploys from `main`; production only from a `vX.Y.Z` tag through the release workflow. Don't deploy production from an agent session.
 - Add user-visible changes under `## [Unreleased]` in CHANGELOG.md. Don't bump the version or tag unless asked; `npm run release:prepare` does both files.
+- While building on a feature branch, mark each finished phase with `npm run milestone -- <phase>` (tags `build/<version>-<phase>` locally). Never make a `v*` tag for a milestone: release.yml deploys production on any `v*.*.*` tag.
 - New bindings go into production and staging in `wrangler.jsonc` with different resource names; `npm run infra:check` must pass. Never give staging production's routes or resources.
 - Workflows live in `.github/workflows/` (or are parked in `CONFIG/github-workflows/` when the pushing app lacks the workflows permission). Pin every action to a commit SHA.
 

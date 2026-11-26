@@ -6,19 +6,21 @@ import { classifyBot, classifyReferral } from "./classify";
 export interface IngestKey {
   tenantId: string;
   keyId: string;
+  /** Set on a personal tracing key: every trace sent with it belongs to this person. */
+  person: string | null;
 }
 
 /** Resolve an ingest (or read) key to a tenant. Keys are stored as SHA-256 hashes only. */
 export async function resolveKey(env: Env, secret: string | null, scopes: string[]): Promise<IngestKey> {
   if (!secret || secret.length < 20) throw new HttpError(401, "bad_key", "Missing or malformed key");
   const hash = await sha256Hex(secret);
-  const row = await env.DB.prepare("SELECT id, tenant_id, scope FROM api_keys WHERE key_hash = ?1 AND revoked_at IS NULL")
+  const row = await env.DB.prepare("SELECT id, tenant_id, scope, person FROM api_keys WHERE key_hash = ?1 AND revoked_at IS NULL")
     .bind(hash)
-    .first<{ id: string; tenant_id: string; scope: string }>();
+    .first<{ id: string; tenant_id: string; scope: string; person: string | null }>();
   if (!row || !scopes.includes(row.scope)) throw new HttpError(401, "bad_key", "Key not recognised for this endpoint");
   // Last-used is advisory; don't fail the request if this write fails.
   env.DB.prepare("UPDATE api_keys SET last_used_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1").bind(row.id).run().catch(() => undefined);
-  return { tenantId: row.tenant_id, keyId: row.id };
+  return { tenantId: row.tenant_id, keyId: row.id, person: row.person ?? null };
 }
 
 export interface EdgeEvent {

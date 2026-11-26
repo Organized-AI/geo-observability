@@ -54,6 +54,7 @@ export interface Env {
   STRIPE_BILLING_CONFIG?: string; // JSON from scripts/stripe-setup.mjs (price and meter ids)
   RESEND_API_KEY?: string; // fallback email provider when the Cloudflare binding isn't usable
   DEV_AUTH_EMAIL?: string; // local development only; ignored unless ENVIRONMENT is "development"
+  TRACE_RETENTION_DAYS?: string; // days LLM traces are kept before deletion; defaults to 92 (one quarter)
   AGENCY_EMAILS?: string; // comma-separated emails that see every tenant (agency staff)
 }
 

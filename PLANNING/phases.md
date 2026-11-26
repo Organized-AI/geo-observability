@@ -14,6 +14,7 @@
 | 9 Insights and recommendations | Daily insights with evidence, ranked actions, content briefs | Built (weekly email/Slack brief not built) |
 | 10 API, MCP, spend controls | v1 report API, MCP server, per-tenant spend cap, OTel export | Built |
 | 11 Extras | Brand perception and fact-checking built; shopping visibility, drafted content, Browser Run samples not built | Partly built |
+| 12 LLM tracing | Clients send traces from their own LLM apps over OTLP; portal Traces view with span tree, sessions and filters. Plan: `IMPLEMENTATION-MASTER-PLAN.md` | Stage 1 built (T0 to T5). Stage 2, Claude Code and Codex as sources with a People view, built (H1 to H4). Cost, evaluations, datasets, prompts and monitors not built |
 
 ## Next, in order
 1. Cloudflare resources + secrets, deploy staging, seed demo.
